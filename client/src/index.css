@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    text-transform: none;
+  }
+
+  /* Completely exclude calendar and date elements from text-transform uppercase */
+  .rdp, .rdp *, [class*="rdp"], [class*="rdp"] * {
+    text-transform: none !important;
+  }
+
+  .app-capslock h1:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock h2:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock h3:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock h4:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock h5:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock h6:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock p:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock span:not(.rdp *):not([class*="rdp"] *):not(.no-capslock):not(.normal-case), 
+  .app-capslock a:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock strong:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock b:not(.rdp *):not([class*="rdp"] *):not(.normal-case), 
+  .app-capslock li:not(.rdp *):not([class*="rdp"] *):not(.normal-case),
+  .app-capslock button:not(.rdp *):not([class*="rdp"] *):not(.normal-case) {
+    text-transform: uppercase;
+  }
+
+  .normal-case, .no-capslock, .no-capslock * {
+    text-transform: none !important;
+  }
+
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 24 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 10%;
+
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 100% 97%;
+    --secondary-foreground: 24 100% 30%;
+
+    --muted: 24 10% 96%;
+    --muted-foreground: 24 10% 45%;
+
+    --accent: 24 100% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 10% 90%;
+    --input: 24 10% 90%;
+    --ring: 24 100% 50%;
+
+    --radius: 1rem;
+
+    /* Sidebar Theme Colors */
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 24 10% 10%;
+    --sidebar-primary: 24 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 100% 97%;
+    --sidebar-accent-foreground: 24 100% 30%;
+    --sidebar-border: 24 10% 90%;
+    --sidebar-ring: 24 100% 50%;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(24, 10, 10, 0.04);
+  }
+
+  .glass-panel-orange {
+    background: rgba(249, 115, 22, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(249, 115, 22, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(249, 115, 22, 0.03);
+  }
+
+  .card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px 0 rgba(249, 115, 22, 0.08);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.5);
+}
