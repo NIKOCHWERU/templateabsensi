@@ -1,6 +1,6 @@
-# Blueprint Sistem Informasi Absensi Karyawan PT Elok Jaya Abadhi (PT EJA)
+# Blueprint Sistem Informasi Absensi Karyawan
 
-Dokumen ini berisi dokumentasi lengkap mengenai alur (*workflow*), arsitektur teknologi, struktur basis data (*database schema*), detail *business logic*, serta desain antarmuka sistem absensi digital untuk karyawan non-manajemen PT Elok Jaya Abadhi (PT EJA). Dokumen ini disusun sebagai cetak biru (*blueprint*) menyeluruh agar sistem dapat dibangun kembali dari awal dengan hasil yang sama persis dan performa yang lebih optimal.
+Dokumen ini berisi dokumentasi lengkap mengenai alur (*workflow*), arsitektur teknologi, struktur basis data (*database schema*), detail *business logic*, serta desain antarmuka sistem absensi digital untuk karyawan non-manajemen. Dokumen ini disusun sebagai cetak biru (*blueprint*) menyeluruh agar sistem dapat dibangun kembali dari awal dengan hasil yang sama persis dan performa yang lebih optimal.
 
 ---
 
