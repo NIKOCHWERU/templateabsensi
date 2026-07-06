@@ -412,7 +412,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         icon: AlertTriangle,
                     }
                 ] : []),
-                ...((user?.role === 'superadmin' || user?.role === 'admin') ? [
+                ...(user?.role === 'superadmin' ? [
                     {
                         title: "Kelola Admin",
                         url: "/admin/manage-admins",

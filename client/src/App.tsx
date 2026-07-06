@@ -217,7 +217,7 @@ export default function App() {
               {() => <AdminLayout><ProtectedRoute component={AdminShiftPage} roles={["admin", "superadmin"]} /></AdminLayout>}
             </Route>
             <Route path="/admin/manage-admins">
-              {() => <AdminLayout><ProtectedRoute component={AdminManageAdminsPage} roles={["admin", "superadmin"]} /></AdminLayout>}
+              {() => <AdminLayout><ProtectedRoute component={AdminManageAdminsPage} roles={["superadmin"]} /></AdminLayout>}
             </Route>
             <Route path="/admin/activity-logs">
               {() => <AdminLayout><ProtectedRoute component={ActivityLogsPage} roles={["superadmin"]} /></AdminLayout>}
