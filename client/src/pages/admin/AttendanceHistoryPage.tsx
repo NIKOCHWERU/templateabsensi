@@ -91,7 +91,7 @@ export default function AttendanceHistoryPage() {
     }
 
     const { data: attendanceHistory, isLoading: isLoadingAttendance } = useQuery<Attendance[]>({
-        queryKey: [`/api/attendance?startDate=${format(startDate, 'yyyy-MM-dd')}&endDate=${format(endDate, 'yyyy-MM-dd')}`],
+        queryKey: [`/api/admin/attendance?startDate=${format(startDate, 'yyyy-MM-dd')}&endDate=${format(endDate, 'yyyy-MM-dd')}`],
         refetchInterval: 10000,
     });
 
@@ -1100,7 +1100,7 @@ export default function AttendanceHistoryPage() {
                                                                     <p className="text-[10px] font-bold text-gray-900">
                                                                         {(() => {
                                                                             const { netWorkMins } = calculateDailyTotal([record]);
-                                                                            return netWorkMins > 0 ? `Total Kerja: ${formatDuration(netWorkMins)}` : "Absensi tidak lengkap";
+                                                                            return netWorkMins > 0 ? `Total Kerja: ${formatDuration(netWorkMins)}` : "Absensi belum lengkap";
                                                                         })()}
                                                                     </p>
                                                                 </div>

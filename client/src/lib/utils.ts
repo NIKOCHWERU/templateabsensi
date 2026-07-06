@@ -128,7 +128,7 @@ export function uploadFileWithProgress(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload-single");
+    xhr.open("POST", "/api/upload-direct");
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {

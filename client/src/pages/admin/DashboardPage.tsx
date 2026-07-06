@@ -173,7 +173,7 @@ export default function AdminDashboard() {
     };
 
     const { data: attendanceHistory } = useQuery<Attendance[]>({
-        queryKey: ["/api/attendance"], // Fetches all history
+        queryKey: ["/api/admin/attendance"], // Fetches all history
         refetchInterval: 5000, // Poll every 5 seconds
     });
 
@@ -221,43 +221,16 @@ export default function AdminDashboard() {
                 <header className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
                     <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
                     <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex gap-2">
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept=".sql"
-                                onChange={handleFileChange}
-                            />
-                            <Button
-                                variant="outline"
-                                className="border-orange-200 text-orange-700 hover:bg-orange-50 shadow-sm"
-                                onClick={handleImportClick}
-                                disabled={importMutation.isPending}
-                            >
-                                {importMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                                Import Database
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm"
-                                onClick={() => backupMutation.mutate()}
-                                disabled={backupMutation.isPending}
-                            >
-                                {backupMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <DatabaseBackup className="w-4 h-4 mr-2" />}
-                                Backup Database
-                            </Button>
-                        </div>
                         <Dialog>
                             <DialogTrigger asChild>
-                                <Button variant="outline" className="border-primary/20 text-primary-foreground hover:bg-primary/5 shadow-sm">
+                                <Button variant="outline" className="border-primary/20 text-primary hover:bg-primary/5 shadow-sm">
                                     <Info className="w-4 h-4 mr-2" />
                                     Tata Cara & Ketentuan Absensi
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
-                                    <DialogTitle className="text-xl font-bold text-primary-foreground flex items-center gap-2">
+                                    <DialogTitle className="text-xl font-bold text-primary flex items-center gap-2">
                                         <Info className="w-6 h-6" />
                                         Tata Cara Absensi (Penting Dibaca!)
                                     </DialogTitle>
@@ -273,7 +246,7 @@ export default function AdminDashboard() {
                                         <p className="text-sm font-bold text-gray-600 uppercase mb-2">Urutan Tombol Yang Ditekan</p>
                                         <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
                                             {/* Simulate Check In */}
-                                            <div className="bg-white border-2 border-green-500 text-primary-foreground rounded-xl p-3 flex flex-col items-center justify-center gap-2 shadow-sm relative">
+                                            <div className="bg-white border-2 border-green-500 text-primary rounded-xl p-3 flex flex-col items-center justify-center gap-2 shadow-sm relative">
                                                 <div className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse">#1</div>
                                                 <Clock className="w-6 h-6" />
                                                 <span className="font-bold text-xs text-center">Absen Masuk<br /><span className="text-[10px] font-normal text-gray-500">Saat tiba</span></span>
@@ -305,7 +278,7 @@ export default function AdminDashboard() {
                                             1. Cara Absen Datang & Pulang
                                         </h4>
                                         <ul className="list-disc list-inside space-y-2 ml-2 text-gray-700 leading-relaxed">
-                                            <li><strong className="text-primary-foreground">Saat Datang:</strong> Jangan lupa langsung tekan tombol <strong className="text-primary-foreground border border-primary/20 bg-primary/5 px-1 rounded">Absen Masuk (1)</strong> supaya sistem mulai menghitung jam kerja.</li>
+                                            <li><strong className="text-primary font-bold">Saat Datang:</strong> Jangan lupa langsung tekan tombol <strong className="text-primary border border-primary/20 bg-primary/5 px-1 rounded">Absen Masuk (1)</strong> supaya sistem mulai menghitung jam kerja.</li>
                                             <li><strong className="text-red-600">Saat Selesai Kerja:</strong> Wajib menekan tombol <strong className="text-red-600 border border-red-200 bg-red-50 px-1 rounded">Absen Pulang (4)</strong> sebelum meninggalkan tempat kerja.</li>
                                             <li><strong className="text-blue-600">Bisa Absen Masuk Berkali-kali!</strong> Jika hari ini Bapak/Ibu harus keluar dari tempat kerja lalu kembali lagi, silakan <strong className="text-red-500 underline">Absen Pulang</strong> dulu saat pergi, dan <strong className="text-primary underline">Absen Masuk</strong> lagi saat sudah kembali. Jam kerja otomatis akan digabungkan.</li>
                                         </ul>

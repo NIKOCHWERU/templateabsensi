@@ -59,9 +59,9 @@ export default function LoginPage() {
     queryKey: ["/api/config"],
   });
 
-  const namaPt = config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABC";
+  const singkatanPt = config?.singkatanPt || config?.namaPt || import.meta.env.VITE_SINGKATAN_PT || import.meta.env.VITE_NAMA_PT || "PT ABC";
   const logoUrl = config?.logoUrl || import.meta.env.VITE_LOGO_FILE || "/logo_elok_buah.jpg";
-  const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || namaPt.charAt(0);
+  const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || singkatanPt.charAt(0);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
@@ -80,7 +80,7 @@ export default function LoginPage() {
                {logoInisial}
              </div>
           )}
-          <h1 className="font-heading font-black text-2xl text-slate-800 tracking-tight uppercase">Absensi {namaPt}</h1>
+          <h1 className="font-heading font-black text-2xl text-slate-800 tracking-tight uppercase">Absensi {singkatanPt}</h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase">Sistem manajemen absensi tenaga kerja</p>
         </div>
 
@@ -98,11 +98,6 @@ export default function LoginPage() {
                 required
               />
             </div>
-          </div>
-
-          <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-4 flex gap-3 text-[11px] text-orange-800 leading-relaxed">
-            <ShieldAlert className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            Untuk akun tenaga kerja, otentikasi kata sandi dilewati. Anda hanya perlu memasukkan NIK terdaftar untuk langsung mengakses dasbor.
           </div>
 
           <button

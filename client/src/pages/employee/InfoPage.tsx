@@ -89,19 +89,11 @@ export default function InfoPage() {
         </DialogContent>
       </Dialog>
 
-      <CompanyHeader />
+      <CompanyHeader title="Papan Informasi" />
 
-      <main className="px-4 -mt-8 max-w-lg mx-auto space-y-4">
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="flex items-center gap-2"
-        >
-          <Newspaper className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-bold text-gray-800">Papan Informasi</h2>
-        </motion.div>
+      <main className="px-4 pt-4 max-w-lg mx-auto">
 
-        {isLoading ? (
+        {isLoading && announcements.length === 0 ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
@@ -115,7 +107,7 @@ export default function InfoPage() {
             <p className="text-gray-400 text-sm">Belum ada pengumuman</p>
           </motion.div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             {announcements.map((ann, i) => (
               <motion.article
                 key={ann.id}
@@ -125,36 +117,37 @@ export default function InfoPage() {
                 onClick={() => setSelectedAnnouncement(ann)}
                 className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all group"
               >
-                {ann.imageUrl && (
+                {ann.imageUrl ? (
                   <div className="relative overflow-hidden">
                     <img
                       src={ann.imageUrl}
                       alt={ann.title}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                    <h3 className="absolute bottom-3 left-4 right-4 text-white font-bold text-base leading-tight drop-shadow-lg pointer-events-none">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+                    <h3 className="absolute bottom-2 left-2 right-2 text-white font-bold text-xs leading-tight drop-shadow-lg pointer-events-none line-clamp-2">
                       {ann.title}
                     </h3>
                   </div>
-                )}
-                <div className="p-4">
-                  {!ann.imageUrl && (
-                    <h3 className="font-bold text-gray-800 text-base mb-2">{ann.title}</h3>
-                  )}
-                  <div className="ql-snow">
-                    <div 
-                      className="ql-editor !p-0 text-sm text-gray-500 line-clamp-2 mb-3 prose prose-sm max-w-none prose-p:my-2 prose-p:leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: ann.content }}
-                    />
+                ) : (
+                  <div className="h-16 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center px-3">
+                    <Newspaper className="w-6 h-6 text-primary/40" />
                   </div>
+                )}
+                <div className="p-2.5">
+                  {!ann.imageUrl && (
+                    <h3 className="font-bold text-gray-800 text-xs mb-1 line-clamp-2">{ann.title}</h3>
+                  )}
+                  <p className="text-[10px] text-gray-400 line-clamp-2 mb-2 leading-relaxed">
+                    {ann.content.replace(/<[^>]*>/g, '')}
+                  </p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {safeFormat(ann.createdAt, "dd MMM yyyy")}
+                    <span className="text-[9px] text-gray-300 flex items-center gap-0.5">
+                      <Calendar className="w-2.5 h-2.5" />
+                      {safeFormat(ann.createdAt, "dd MMM")}
                     </span>
-                    <span className="text-[10px] text-primary font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">
-                      Baca Selengkapnya <ExternalLink className="w-3 h-3" />
+                    <span className="text-[9px] text-primary font-semibold flex items-center gap-0.5">
+                      Baca <ExternalLink className="w-2.5 h-2.5" />
                     </span>
                   </div>
                 </div>

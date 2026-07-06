@@ -1,6 +1,6 @@
-# Blueprint Sistem Informasi Absensi Karyawan
+# Blueprint Sistem Informasi Absensi Karyawan PT ABC (PT ABC)
 
-Dokumen ini berisi dokumentasi lengkap mengenai alur (*workflow*), arsitektur teknologi, struktur basis data (*database schema*), detail *business logic*, serta desain antarmuka sistem absensi digital untuk karyawan non-manajemen. Dokumen ini disusun sebagai cetak biru (*blueprint*) menyeluruh agar sistem dapat dibangun kembali dari awal dengan hasil yang sama persis dan performa yang lebih optimal.
+Dokumen ini berisi dokumentasi lengkap mengenai alur (*workflow*), arsitektur teknologi, struktur basis data (*database schema*), detail *business logic*, serta desain antarmuka sistem absensi digital untuk karyawan non-manajemen PT ABC (PT ABC). Dokumen ini disusun sebagai cetak biru (*blueprint*) menyeluruh agar sistem dapat dibangun kembali dari awal dengan hasil yang sama persis dan performa yang lebih optimal.
 
 ---
 
@@ -18,10 +18,10 @@ Dokumen ini berisi dokumentasi lengkap mengenai alur (*workflow*), arsitektur te
 
 ## 1. GAMBARAN UMUM & FILOSOFI DESAIN
 
-Sistem Absensi PT EJA adalah aplikasi web progresif (PWA - Progressive Web App) yang dirancang khusus untuk mempermudah pencatatan kehadiran karyawan lapangan/non-manajemen dengan verifikasi visual (foto wajah) dan geolokasi (GPS).
+Sistem Absensi PT ABC adalah aplikasi web progresif (PWA - Progressive Web App) yang dirancang khusus untuk mempermudah pencatatan kehadiran karyawan lapangan/non-manajemen dengan verifikasi visual (foto wajah) dan geolokasi (GPS).
 
 ### Prinsip Desain Antarmuka:
-- **Tema Warna ("Elok Buah")**: Menggunakan warna hijau segar sebagai warna utama (`--primary: HSL(122, 39%, 49%)` atau `#4CAF50`), dipadukan dengan latar belakang hangat bernuansa jingga/krem lembut (`--background: HSL(30, 50%, 98%)`) untuk memberikan kesan premium, modern, dan higienis.
+- **Tema Warna ("PT ABC")**: Menggunakan warna hijau segar sebagai warna utama (`--primary: HSL(122, 39%, 49%)` atau `#4CAF50`), dipadukan dengan latar belakang hangat bernuansa jingga/krem lembut (`--background: HSL(30, 50%, 98%)`) untuk memberikan kesan premium, modern, dan higienis.
 - **Tipografi Modern**: Memadukan font **Outfit** (untuk judul dan elemen visual besar) serta **DM Sans** (untuk teks isi) guna mempermudah keterbacaan di perangkat mobile.
 - **Efek Interaktif**: Menggunakan *glassmorphism* (panel kaca transparan dengan efek blur), bayangan halus (*soft shadows*), mikro-animasi transisi halaman (*Framer Motion*), serta efek hover interaktif pada tombol/card.
 - **Responsif Seluler (Mobile-First)**: Halaman karyawan dioptimalkan penuh untuk tampilan layar ponsel cerdas (smartphone), dilengkapi dengan navigasi bawah (*bottom navigation bar*). Halaman admin dirancang berbentuk dasbor desktop fungsional bersisi navigasi samping (*sidebar*).
@@ -206,7 +206,7 @@ export const warningLetters = mysqlTable("warning_letters", {
 
 ## 4. LOGIKA BISNIS UTAMA (CORE BUSINESS LOGIC)
 
-Sistem absensi PT EJA memiliki beberapa logika operasional khusus untuk menyesuaikan kebutuhan lapangan:
+Sistem absensi PT ABC memiliki beberapa logika operasional khusus untuk menyesuaikan kebutuhan lapangan:
 
 ### A. Pembagian Sesi & Batas Hari Kerja (Day Boundary 04.00 WIB)
 - Pergantian hari secara administratif absensi dipatok pada pukul **04:00 AM WIB**.
@@ -315,7 +315,7 @@ Pendeteksian manipulasi lokasi dipicu secara client-side di browser karyawan seb
 ### Administrasi (Khusus Admin):
 - `GET /api/admin/unverified-employees` : Melihat pendaftaran karyawan baru status pending.
 - `POST /api/admin/verify-employee/:id` : Menyetujui/menolak berkas pendaftaran karyawan baru.
-- `GET /api/admin/employees` : Daftar seluruh karyawan aktif PT EJA.
+- `GET /api/admin/employees` : Daftar seluruh karyawan aktif PT ABC.
 - `DELETE /api/admin/users/:id` : Menghapus data user registrasi yang ditolak/belum terverifikasi secara permanen.
 - `POST /api/admin/warning-letters` : Menerbitkan surat peringatan (SP) baru.
 - `DELETE /api/admin/warning-letters/:id` : Menghapus berkas rekam SP.
@@ -335,11 +335,11 @@ Pendeteksian manipulasi lokasi dipicu secara client-side di browser karyawan seb
 ### A. Ekspor PDF Massal Harian (*Bulk Export*)
 Fitur ini memfasilitasi admin untuk mengunduh rekap harian secara masal dalam rentang tanggal tertentu langsung berbentuk file PDF satu-persatu tanpa perlu mencetaknya manual:
 - **Rekap Absensi Teks**: Mengunduh rekap absensi berformat `.pdf` per hari. Format nama file diatur dengan huruf kapital (*uppercase*) lengkap dengan penulisan nama bulan bahasa Indonesia kapital:
-  `REKAP ABSENSI NON MANAJEMEN [D] [MONTH] - [D+1] [MONTH] [YEAR] PT EJA.pdf`
-  *(Contoh: `REKAP ABSENSI NON MANAJEMEN 4 JUNI - 5 JUNI 2026 PT EJA.pdf`)*
+  `REKAP ABSENSI NON MANAJEMEN [D] [MONTH] - [D+1] [MONTH] [YEAR] PT ABC.pdf`
+  *(Contoh: `REKAP ABSENSI NON MANAJEMEN 4 JUNI - 5 JUNI 2026 PT ABC.pdf`)*
 - **Rekap Absensi Foto**: Mengunduh lembar bukti visual berformat `.pdf` per hari. Format nama file:
-  `REKAP ABSENSI FOTO NON MANAJEMEN [D] [MONTH] - [D+1] [MONTH] [YEAR] PT EJA.pdf`
-  *(Contoh: `REKAP ABSENSI FOTO NON MANAJEMEN 4 JUNI - 5 JUNI 2026 PT EJA.pdf`)*
+  `REKAP ABSENSI FOTO NON MANAJEMEN [D] [MONTH] - [D+1] [MONTH] [YEAR] PT ABC.pdf`
+  *(Contoh: `REKAP ABSENSI FOTO NON MANAJEMEN 4 JUNI - 5 JUNI 2026 PT ABC.pdf`)*
 
 ### Implementasi Teknis Ekspor Massal:
 1. Browser klien secara dinamis memuat pustaka `html2pdf.js` dari CDNJS saat tombol di-klik.

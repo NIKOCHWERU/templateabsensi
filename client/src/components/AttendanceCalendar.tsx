@@ -104,18 +104,18 @@ export function AttendanceCalendar({
         </div>
 
         {/* View Toggle */}
-        <div className="flex bg-orange-50/50 p-1 rounded-full border border-orange-100/50">
+        <div className="flex bg-primary/5 p-1 rounded-full border border-primary/10">
           <button
             onClick={() => setViewMode('month')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5
-                    ${viewMode === 'month' ? 'bg-primary text-white shadow-sm' : 'text-orange-600 hover:text-orange-700'}`}
+                    ${viewMode === 'month' ? 'bg-primary text-white shadow-sm' : 'text-primary hover:text-primary-foreground'}`}
           >
             <LayoutGrid className="w-3.5 h-3.5" /> Bulanan
           </button>
           <button
             onClick={() => setViewMode('week')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5
-                    ${viewMode === 'week' ? 'bg-primary text-white shadow-sm' : 'text-orange-600 hover:text-orange-700'}`}
+                    ${viewMode === 'week' ? 'bg-primary text-white shadow-sm' : 'text-primary hover:text-primary-foreground'}`}
           >
             <CalendarIcon className="w-3.5 h-3.5" /> Minggu
           </button>
@@ -124,7 +124,7 @@ export function AttendanceCalendar({
 
       {/* Grid */}
       <div className={`grid grid-cols-7 gap-px bg-border ${viewMode === 'week' ? 'bg-white gap-0 divide-x divide-gray-100' : ''}`}>
-        {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map(d => (
+        {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map(d => (
           <div key={d} className="bg-gray-50 p-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
             {d}
           </div>
@@ -147,13 +147,13 @@ export function AttendanceCalendar({
               onClick={() => handleDateClick(day, record)}
               className={`
                   relative min-h-[80px] p-2 flex flex-col cursor-pointer transition-all group
-                  ${viewMode === 'week' ? 'bg-white hover:bg-orange-50/30' : 'bg-white hover:bg-gray-50'}
-                  ${isToday && viewMode === 'month' ? 'ring-1 ring-inset ring-orange-400 bg-orange-50/10' : ''}
-                  ${isSelected ? 'bg-orange-50 ring-2 ring-inset ring-orange-500 z-10' : ''}
+                  ${viewMode === 'week' ? 'bg-white hover:bg-primary/5' : 'bg-white hover:bg-gray-50'}
+                  ${isToday && viewMode === 'month' ? 'ring-1 ring-inset ring-primary bg-primary/5' : ''}
+                  ${isSelected ? 'bg-primary/5 ring-2 ring-inset ring-primary z-10' : ''}
                 `}
             >
               <div className="flex justify-between items-start">
-                <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 group-hover:bg-gray-200'}`}>
+                <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary text-primary-foreground shadow-md' : 'text-gray-500 group-hover:bg-gray-200'}`}>
                   {format(day, 'd')}
                 </span>
               </div>

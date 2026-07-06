@@ -8,6 +8,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { BottomNav } from "@/components/BottomNav";
+import { CompanyHeader } from "@/components/CompanyHeader";
 import { safeCompressImage, uploadFileWithProgress, toTitleCase, formatAddress } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,8 +35,8 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="py-2 border-b border-slate-50 last:border-0">
-      <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">{label}</span>
-      <p className="text-gray-800 font-medium mt-0.5">{value || <span className="text-slate-300 italic text-sm">Belum diisi</span>}</p>
+      <span className="text-xs text-slate-500 font-medium tracking-wide">{label}</span>
+      <p className="text-gray-800 font-medium mt-0.5">{value || <span className="text-slate-300 italic text-sm">Belum Diisi</span>}</p>
     </div>
   );
 }
@@ -145,19 +146,9 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-64">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-primary to-primary/80 pt-10 pb-20 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-4 right-4 w-32 h-32 rounded-full border-4 border-white" />
-          <div className="absolute -bottom-8 -left-8 w-48 h-48 rounded-full border-4 border-white" />
-        </div>
-        <div className="max-w-lg mx-auto relative z-10">
-          <h1 className="text-white text-2xl font-bold mb-1">Profil Saya</h1>
-          <p className="text-white/70 text-sm">Data diri dan informasi pribadi</p>
-        </div>
-      </div>
+      <CompanyHeader title="Profil Saya" />
 
-      <div className="max-w-lg mx-auto px-4 -mt-12 relative z-10 space-y-4">
+      <div className="max-w-lg mx-auto px-4 -mt-6 relative z-10 space-y-4">
         {/* Avatar Card */}
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           className="bg-white rounded-3xl shadow-xl shadow-black/5 p-6 flex items-center gap-5">
@@ -365,7 +356,7 @@ export default function ProfilePage() {
                 <ReadOnlyField label="Alamat" value={formatAddress(user?.address)} />
                 <ReadOnlyField label="Jabatan" value={toTitleCase(user?.position)} />
                 <ReadOnlyField label="Status Tenaga Kerja" value={toTitleCase((user as any)?.employmentStatus)} />
-                <ReadOnlyField label="Tahun bergabung ke elok" value={(user as any)?.joinDate} />
+                <ReadOnlyField label="Tahun Bergabung Ke Perusahaan" value={(user as any)?.joinDate} />
               </div>
 
               {/* Notice + Report Link */}

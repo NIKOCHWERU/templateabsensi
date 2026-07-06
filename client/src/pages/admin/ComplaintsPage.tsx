@@ -19,6 +19,7 @@ interface Complaint {
     description: string;
     status: "pending" | "reviewed" | "resolved";
     createdAt: string;
+    photos?: ComplaintPhoto[];
 }
 
 interface ComplaintPhoto {
@@ -62,11 +63,7 @@ export default function AdminComplaintsPage() {
         refetchInterval: 5000,
     });
 
-    const { data: complaintPhotos = [] } = useQuery<ComplaintPhoto[]>({
-        queryKey: [`/api/complaints/${selectedComplaint?.id}/photos`],
-        enabled: !!selectedComplaint,
-        refetchInterval: 5000,
-    });
+    const complaintPhotos = selectedComplaint?.photos || [];
 
     const statusMutation = useMutation({
         mutationFn: async ({ id, status }: { id: number; status: string }) => {

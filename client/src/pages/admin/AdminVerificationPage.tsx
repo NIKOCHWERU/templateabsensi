@@ -219,7 +219,7 @@ export default function AdminVerificationPage() {
                   <Section title="Pekerjaan" icon={<Briefcase className="w-4 h-4" />}>
                     <DataRow label="Jabatan" value={toTitleCase((selectedUser as any).position)} />
                     <DataRow label="Cabang" value={toTitleCase((selectedUser as any).branch)} />
-                    <DataRow label="Tahun bergabung ke elok" value={(selectedUser as any).joinDate} />
+                    <DataRow label="Tahun Bergabung Ke Perusahaan" value={(selectedUser as any).joinDate} />
                     <DataRow label="Status" value={toTitleCase((selectedUser as any).employmentStatus)} />
                   </Section>
                 </div>
@@ -334,7 +334,7 @@ function DocumentBox({ label, url, isDrive }: { label: string; url?: string | nu
             >
               <Eye className="w-5 h-5 mb-1" />
               <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">
-                {isLocal ? 'Lihat Foto' : 'Buka Drive'}
+                Buka File
               </span>
             </div>
           </>

@@ -16,9 +16,9 @@ export default function AdminLoginPage() {
     queryKey: ["/api/config"],
   });
 
-  const namaPt = config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABC";
+  const singkatanPt = config?.singkatanPt || config?.namaPt || import.meta.env.VITE_SINGKATAN_PT || import.meta.env.VITE_NAMA_PT || "PT ABC";
   const logoUrl = config?.logoUrl || import.meta.env.VITE_LOGO_FILE || "/logo_elok_buah.jpg";
-  const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || namaPt.charAt(0);
+  const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || singkatanPt.charAt(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
           }
           toast({
             title: "Berhasil Masuk",
-            description: `Selamat datang kembali, Admin ${namaPt}.`,
+            description: `Selamat datang kembali, Admin ${singkatanPt}.`,
             variant: "success",
           });
         },
@@ -81,7 +81,7 @@ export default function AdminLoginPage() {
                {logoInisial}
              </div>
           )}
-          <h1 className="font-heading font-black text-2xl text-slate-800 tracking-tight uppercase">Portal Admin {namaPt}</h1>
+          <h1 className="font-heading font-black text-2xl text-slate-800 tracking-tight uppercase">Portal Admin {singkatanPt}</h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase">Sistem manajemen absensi tenaga kerja</p>
         </div>
 

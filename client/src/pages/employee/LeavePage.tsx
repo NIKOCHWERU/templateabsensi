@@ -89,7 +89,7 @@ function LeaveCalendar({
 
             {/* Day names */}
             <div className="grid grid-cols-7 gap-px bg-gray-100">
-                {['Sn', 'Sl', 'Rb', 'Km', 'Jm', 'Sb', 'Mg'].map(d => (
+                {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map(d => (
                     <div key={d} className="bg-gray-50 py-2 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                         {d}
                     </div>
@@ -262,31 +262,31 @@ export default function LeavePage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
-            <CompanyHeader />
+            <CompanyHeader title="Cuti Karyawan" />
 
-            <main className="p-4 space-y-4 max-w-lg mx-auto">
+            <main className="p-4 -mt-6 space-y-4 max-w-lg mx-auto">
                 {/* Balance Card */}
-                <Card className="border-none shadow-sm bg-gradient-to-br from-primary to-orange-600 text-white rounded-3xl overflow-hidden">
+                <Card className="border border-slate-100 shadow-sm bg-white text-slate-800 rounded-3xl overflow-hidden">
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
                             <div>
-                                <p className="text-primary-foreground/90 text-sm font-medium opacity-90">Sisa Kuota Cuti</p>
-                                <h2 className="text-4xl font-bold mt-1 normal-case">
-                                    {isLoadingBalance ? "..." : balance?.remaining} <span className="text-lg font-normal opacity-70 normal-case">Hari</span>
+                                <p className="text-slate-400 text-sm font-semibold">Sisa Kuota Cuti</p>
+                                <h2 className="text-4xl font-black mt-1 normal-case text-slate-800">
+                                    {isLoadingBalance ? "..." : balance?.remaining} <span className="text-lg font-medium text-slate-400 normal-case">Hari</span>
                                 </h2>
                             </div>
-                            <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
+                            <div className="bg-primary/10 p-3 rounded-2xl text-primary">
                                 <CalendarIcon className="w-6 h-6" />
                             </div>
                         </div>
-                        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+                        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                             <div>
-                                <p className="text-primary-foreground/90 text-[10px] uppercase font-bold tracking-wider opacity-70">Telah Digunakan</p>
-                                <p className="text-xl font-bold normal-case">{balance?.used} Hari</p>
+                                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Telah Digunakan</p>
+                                <p className="text-xl font-bold text-slate-800 normal-case">{balance?.used} Hari</p>
                             </div>
                             <div>
-                                <p className="text-primary-foreground/90 text-[10px] uppercase font-bold tracking-wider opacity-70">Total Jatah</p>
-                                <p className="text-xl font-bold normal-case">{balance?.limit} Hari</p>
+                                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Total Jatah</p>
+                                <p className="text-xl font-bold text-slate-800 normal-case">{balance?.limit} Hari</p>
                             </div>
                         </div>
                     </CardContent>

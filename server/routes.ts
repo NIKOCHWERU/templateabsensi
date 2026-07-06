@@ -2,8 +2,9 @@ import { Express, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { db } from "./db.js";
-import { users, shifts, attendance, leaveRequests, complaints, complaintPhotos, resignations, mutations, warningLetters } from "../shared/schema.js";
+import { exec } from "child_process";
+import { db, pool } from "./db.js";
+import { users, shifts, attendance, leaveRequests, complaints, complaintPhotos, resignations, mutations, warningLetters, systemConfigs, activityLogs, announcements } from "../shared/schema.js";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { isAuthenticated, isAdmin, hashPassword } from "./auth.js";
 
@@ -181,26 +182,115 @@ export function registerRoutes(app: Express) {
   });
 
   // Dynamic application configuration endpoint
-  app.get("/api/config", (req: Request, res: Response) => {
-    res.json({
-      namaPt: process.env.VITE_NAMA_PT || "PT ABCD",
-      singkatanPt: process.env.VITE_SINGKATAN_PT || "PT ABC",
-      deskripsiPwa: process.env.VITE_DESKRIPSI_PWA || "Aplikasi Absensi Tenaga Kerja",
-      logoUrl: process.env.VITE_LOGO_FILE || "/logo_elok_buah.jpg",
-      logoInisial: process.env.VITE_LOGO_INISIAL || "",
-      rekapPrefix: process.env.VITE_REKAP_FILE_PREFIX || "REKAP_ABSENSI",
-      features: {
-        leave: process.env.FEATURE_LEAVE !== "false",
-        recap: process.env.FEATURE_RECAP !== "false",
-        complaint: process.env.FEATURE_COMPLAINT !== "false",
-        info: process.env.FEATURE_INFO !== "false",
-        mutation: process.env.FEATURE_MUTATION !== "false",
-        warningLetter: process.env.FEATURE_WARNING_LETTER !== "false",
-        shift: process.env.FEATURE_SHIFT !== "false",
-        resignation: process.env.FEATURE_RESIGNATION !== "false",
-      },
-      isDriveConfigured
-    });
+  app.get("/api/config", async (req: Request, res: Response) => {
+    try {
+      const dbConfigs = await db.select().from(systemConfigs);
+      const configMap: Record<string, string> = {};
+      dbConfigs.forEach(cfg => {
+        configMap[cfg.key] = cfg.value;
+      });
+
+      res.json({
+        namaPt: configMap["namaPt"] ?? process.env.VITE_NAMA_PT ?? "PT ABCD",
+        singkatanPt: configMap["singkatanPt"] ?? process.env.VITE_SINGKATAN_PT ?? "PT ABC",
+        deskripsiPwa: configMap["deskripsiPwa"] ?? process.env.VITE_DESKRIPSI_PWA ?? "Aplikasi Absensi Tenaga Kerja",
+        logoUrl: configMap["logoUrl"] ?? process.env.VITE_LOGO_FILE ?? "/logo_elok_buah.jpg",
+        logoInisial: configMap["logoInisial"] ?? process.env.VITE_LOGO_INISIAL ?? "",
+        rekapPrefix: configMap["rekapPrefix"] ?? process.env.VITE_REKAP_FILE_PREFIX ?? "REKAP_ABSENSI",
+        themePrimary: configMap["themePrimary"] ?? process.env.VITE_THEME_PRIMARY_HSL ?? "24 95% 53%",
+        themeSecondary: configMap["themeSecondary"] ?? process.env.VITE_THEME_SECONDARY_HSL ?? "24 95% 43%",
+        themeAccent: configMap["themeAccent"] ?? process.env.VITE_THEME_ACCENT_HSL ?? "24 95% 93%",
+        themeBackground: configMap["themeBackground"] ?? process.env.VITE_THEME_BACKGROUND_HSL ?? "0 0% 100%",
+        themeSidebarAccent: configMap["themeSidebarAccent"] ?? process.env.VITE_THEME_SIDEBAR_ACCENT_HSL ?? "24 95% 97%",
+        features: {
+          leave: (configMap["feature_leave"] ?? process.env.FEATURE_LEAVE) !== "false",
+          recap: (configMap["feature_recap"] ?? process.env.FEATURE_RECAP) !== "false",
+          complaint: (configMap["feature_complaint"] ?? process.env.FEATURE_COMPLAINT) !== "false",
+          info: (configMap["feature_info"] ?? process.env.FEATURE_INFO) !== "false",
+          mutation: (configMap["feature_mutation"] ?? process.env.FEATURE_MUTATION) !== "false",
+          warningLetter: (configMap["feature_warningLetter"] ?? process.env.FEATURE_WARNING_LETTER) !== "false",
+          shift: (configMap["feature_shift"] ?? process.env.FEATURE_SHIFT) !== "false",
+          resignation: (configMap["feature_resignation"] ?? process.env.FEATURE_RESIGNATION) !== "false",
+          break: (configMap["feature_break"] ?? process.env.FEATURE_BREAK) !== "false",
+        },
+        isDriveConfigured
+      });
+    } catch (err) {
+      console.error("Failed to load config:", err);
+      res.json({
+        namaPt: process.env.VITE_NAMA_PT || "PT ABCD",
+        singkatanPt: process.env.VITE_SINGKATAN_PT || "PT ABC",
+        deskripsiPwa: process.env.VITE_DESKRIPSI_PWA || "Aplikasi Absensi Tenaga Kerja",
+        logoUrl: process.env.VITE_LOGO_FILE || "/logo_elok_buah.jpg",
+        logoInisial: process.env.VITE_LOGO_INISIAL || "",
+        rekapPrefix: process.env.VITE_REKAP_FILE_PREFIX || "REKAP_ABSENSI",
+        features: {
+          leave: process.env.FEATURE_LEAVE !== "false",
+          recap: process.env.FEATURE_RECAP !== "false",
+          complaint: process.env.FEATURE_COMPLAINT !== "false",
+          info: process.env.FEATURE_INFO !== "false",
+          mutation: process.env.FEATURE_MUTATION !== "false",
+          warningLetter: process.env.FEATURE_WARNING_LETTER !== "false",
+          shift: process.env.FEATURE_SHIFT !== "false",
+          resignation: process.env.FEATURE_RESIGNATION !== "false",
+          break: process.env.FEATURE_BREAK !== "false",
+        },
+        isDriveConfigured
+      });
+    }
+  });
+
+  // Admin endpoint to save configuration
+  app.post("/api/admin/config", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const {
+        namaPt, singkatanPt, deskripsiPwa, logoUrl, logoInisial, rekapPrefix,
+        themePrimary, themeSecondary, themeAccent, themeBackground, themeSidebarAccent,
+        features
+      } = req.body;
+
+      const configsToSave: { key: string; value: string }[] = [];
+      if (namaPt !== undefined) configsToSave.push({ key: "namaPt", value: String(namaPt) });
+      if (singkatanPt !== undefined) configsToSave.push({ key: "singkatanPt", value: String(singkatanPt) });
+      if (deskripsiPwa !== undefined) configsToSave.push({ key: "deskripsiPwa", value: String(deskripsiPwa) });
+      if (logoUrl !== undefined) configsToSave.push({ key: "logoUrl", value: String(logoUrl) });
+      if (logoInisial !== undefined) configsToSave.push({ key: "logoInisial", value: String(logoInisial) });
+      if (rekapPrefix !== undefined) configsToSave.push({ key: "rekapPrefix", value: String(rekapPrefix) });
+      if (themePrimary !== undefined) configsToSave.push({ key: "themePrimary", value: String(themePrimary) });
+      if (themeSecondary !== undefined) configsToSave.push({ key: "themeSecondary", value: String(themeSecondary) });
+      if (themeAccent !== undefined) configsToSave.push({ key: "themeAccent", value: String(themeAccent) });
+      if (themeBackground !== undefined) configsToSave.push({ key: "themeBackground", value: String(themeBackground) });
+      if (themeSidebarAccent !== undefined) configsToSave.push({ key: "themeSidebarAccent", value: String(themeSidebarAccent) });
+
+      if (features && typeof features === "object") {
+        Object.entries(features).forEach(([key, value]) => {
+          configsToSave.push({ key: `feature_${key}`, value: value ? "true" : "false" });
+        });
+      }
+
+      const conn = await pool.getConnection();
+      try {
+        for (const cfg of configsToSave) {
+          await conn.query(
+            "INSERT INTO system_configs (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+            [cfg.key, cfg.value]
+          );
+        }
+        // Log to Activity Logs
+        await db.insert(activityLogs).values({
+          userId: (req.user as any).id,
+          action: "MENGUBAH_SISTEM_KONFIG",
+          details: "Memperbarui konfigurasi sistem/tema warna perusahaan",
+        });
+      } finally {
+        conn.release();
+      }
+
+      res.json({ message: "Konfigurasi sistem berhasil diperbarui" });
+    } catch (err: any) {
+      console.error("Failed to save config:", err);
+      res.status(500).json({ message: "Gagal memperbarui konfigurasi: " + err.message });
+    }
   });
 
   // 1. Complete Employee Registration
@@ -284,6 +374,72 @@ export function registerRoutes(app: Express) {
     }
   );
 
+  // Update Profile & Log Activity
+  app.patch("/api/profile", isAuthenticated, upload.none(), async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { phoneNumber, email, branch, npwp, bpjs, religion, photoUrl, npwpPhotoUrl, bpjsPhotoUrl } = req.body;
+
+      const [currentUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+      const updates: any = {};
+      const logDetails: string[] = [];
+
+      if (phoneNumber !== undefined && phoneNumber !== currentUser.phoneNumber) {
+        updates.phoneNumber = phoneNumber;
+        logDetails.push(`No. HP: dari "${currentUser.phoneNumber || 'Belum Diisi'}" menjadi "${phoneNumber}"`);
+      }
+      if (email !== undefined && email !== currentUser.email) {
+        updates.email = email;
+        logDetails.push(`Email: dari "${currentUser.email || 'Belum Diisi'}" menjadi "${email}"`);
+      }
+      if (branch !== undefined && branch !== currentUser.branch) {
+        updates.branch = branch;
+        logDetails.push(`Cabang: dari "${currentUser.branch || 'Belum Diisi'}" menjadi "${branch}"`);
+      }
+      if (npwp !== undefined && npwp !== currentUser.npwp) {
+        updates.npwp = npwp;
+        logDetails.push(`NPWP: dari "${currentUser.npwp || 'Belum Diisi'}" menjadi "${npwp}"`);
+      }
+      if (bpjs !== undefined && bpjs !== currentUser.bpjs) {
+        updates.bpjs = bpjs;
+        logDetails.push(`BPJS: dari "${currentUser.bpjs || 'Belum Diisi'}" menjadi "${bpjs}"`);
+      }
+      if (religion !== undefined && religion !== currentUser.religion) {
+        updates.religion = religion;
+        logDetails.push(`Agama: dari "${currentUser.religion || 'Belum Diisi'}" menjadi "${religion}"`);
+      }
+      if (photoUrl !== undefined && photoUrl !== currentUser.photoUrl) {
+        updates.photoUrl = photoUrl;
+        logDetails.push("Mengubah foto profil");
+      }
+      if (npwpPhotoUrl !== undefined && npwpPhotoUrl !== currentUser.npwpPhotoUrl) {
+        updates.npwpPhotoUrl = npwpPhotoUrl;
+        logDetails.push("Mengubah foto NPWP");
+      }
+      if (bpjsPhotoUrl !== undefined && bpjsPhotoUrl !== currentUser.bpjsPhotoUrl) {
+        updates.bpjsPhotoUrl = bpjsPhotoUrl;
+        logDetails.push("Mengubah foto BPJS");
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(users).set(updates).where(eq(users.id, userId));
+        
+        // Log to Activity Logs
+        await db.insert(activityLogs).values({
+          userId,
+          action: "MENGUBAH_PROFIL",
+          details: logDetails.join(", "),
+        });
+      }
+
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      res.json(updatedUser);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // 3. Attendance Clock-in (Absen Masuk)
   app.post(
     "/api/attendance/clock-in",
@@ -303,15 +459,32 @@ export function registerRoutes(app: Express) {
         accuracy,
         mocked,
         address,
+        location,
         lateReason,
       } = req.body;
+
+      const activeAddress = location || address;
 
       if (!shiftId) {
         return res.status(400).json({ message: "Shift ID diperlukan" });
       }
 
       try {
-        const [shiftRecord] = await db.select().from(shifts).where(eq(shifts.id, Number(shiftId))).limit(1);
+        let shiftRecord: any = null;
+        if (Number(shiftId) < 0) {
+          // It's a system default shift (e.g. -1 for 08:00 - 17:00)
+          shiftRecord = {
+            id: Number(shiftId),
+            name: "Shift Reguler",
+            checkInTime: "08:00",
+            checkOutTime: "17:00",
+            description: "Shift Reguler Default"
+          };
+        } else {
+          const [found] = await db.select().from(shifts).where(eq(shifts.id, Number(shiftId))).limit(1);
+          shiftRecord = found;
+        }
+
         if (!shiftRecord) {
           return res.status(400).json({ message: "Shift tidak valid" });
         }
@@ -360,7 +533,7 @@ export function registerRoutes(app: Express) {
           date: adminDate,
           checkIn: new Date(),
           checkInPhoto,
-          checkInLocation: address || `Lat: ${latitude}, Lng: ${longitude}`,
+          checkInLocation: activeAddress || `Lat: ${latitude || 'UND'}, Lng: ${longitude || 'UND'}`,
           shiftId: Number(shiftId),
           shift: shiftRecord.name,
           sessionNumber: nextSessionNum,
@@ -382,7 +555,8 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/break-start", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address } = req.body;
+    const { address, location } = req.body;
+    const activeAddress = location || address;
 
     try {
       // Find latest attendance session for today
@@ -408,7 +582,7 @@ export function registerRoutes(app: Express) {
         .set({
           breakStart: new Date(),
           breakStartPhoto,
-          breakStartLocation: address || "Lokasi Istirahat",
+          breakStartLocation: activeAddress || "Lokasi Istirahat",
         })
         .where(eq(attendance.id, activeSession.id));
 
@@ -422,7 +596,8 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/break-end", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address } = req.body;
+    const { address, location } = req.body;
+    const activeAddress = location || address;
 
     try {
       const todaySessions = await db
@@ -450,7 +625,7 @@ export function registerRoutes(app: Express) {
         .set({
           breakEnd: new Date(),
           breakEndPhoto,
-          breakEndLocation: address || "Lokasi Selesai Istirahat",
+          breakEndLocation: activeAddress || "Lokasi Selesai Istirahat",
         })
         .where(eq(attendance.id, activeSession.id));
 
@@ -464,7 +639,8 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/clock-out", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address } = req.body;
+    const { address, location } = req.body;
+    const activeAddress = location || address;
 
     try {
       const todaySessions = await db
@@ -489,7 +665,7 @@ export function registerRoutes(app: Express) {
         .set({
           checkOut: new Date(),
           checkOutPhoto,
-          checkOutLocation: address || "Lokasi Checkout",
+          checkOutLocation: activeAddress || "Lokasi Checkout",
         })
         .where(eq(attendance.id, activeSession.id));
 
@@ -718,6 +894,80 @@ export function registerRoutes(app: Express) {
   });
 
 
+  // ================= ANNOUNCEMENTS (Info Board) =================
+
+  // GET all announcements (public for authenticated users)
+  app.get("/api/announcements", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const list = await db.select().from(announcements).orderBy(desc(announcements.createdAt));
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST create announcement (admin only)
+  app.post("/api/announcements", isAdmin, upload.single("image"), async (req: Request, res: Response) => {
+    try {
+      const { title, content, expiresAt } = req.body;
+      if (!title || !content) {
+        return res.status(400).json({ message: "Judul dan konten wajib diisi" });
+      }
+
+      let imageUrl: string | null = null;
+      if (req.file) {
+        const username = (req.user as any).username;
+        imageUrl = await processSingleUpload(req.file, "document", username);
+      }
+
+      const authorId = (req.user as any).id;
+      await (db.insert(announcements) as any).values({
+        title,
+        content,
+        imageUrl,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        authorId,
+      });
+
+      res.status(201).json({ message: "Informasi berhasil diterbitkan" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH update announcement (admin only)
+  app.patch("/api/announcements/:id", isAdmin, upload.single("image"), async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const { title, content, expiresAt } = req.body;
+
+      const updates: any = {};
+      if (title) updates.title = title;
+      if (content) updates.content = content;
+      if (expiresAt) updates.expiresAt = new Date(expiresAt);
+      if (req.file) {
+        const username = (req.user as any).username;
+        updates.imageUrl = await processSingleUpload(req.file, "document", username);
+      }
+
+      await db.update(announcements).set(updates).where(eq(announcements.id, id));
+      res.json({ message: "Informasi berhasil diperbarui" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE announcement (admin only)
+  app.delete("/api/announcements/:id", isAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(announcements).where(eq(announcements.id, id));
+      res.json({ message: "Informasi berhasil dihapus" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ================= ADMIN & SUPERADMIN =================
 
   // 1. Unverified employees list
@@ -771,6 +1021,98 @@ export function registerRoutes(app: Express) {
         .select()
         .from(users);
       res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get activity logs (restricted to superadmin)
+  app.get("/api/admin/activity-logs", isAdmin, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "superadmin") {
+      return res.status(403).json({ message: "Akses ditolak: Khusus Super Admin" });
+    }
+    try {
+      const list = await db
+        .select({
+          id: activityLogs.id,
+          userId: activityLogs.userId,
+          action: activityLogs.action,
+          details: activityLogs.details,
+          createdAt: activityLogs.createdAt,
+          userFullName: users.fullName,
+          userRole: users.role,
+        })
+        .from(activityLogs)
+        .leftJoin(users, eq(activityLogs.userId, users.id))
+        .orderBy(desc(activityLogs.createdAt));
+
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Create admin user
+  app.post("/api/admin/users", isAdmin, upload.none(), async (req: Request, res: Response) => {
+    try {
+      const { fullName, username, password, role } = req.body;
+      if (!fullName || !username || !password || !role) {
+        return res.status(400).json({ message: "Semua kolom wajib diisi" });
+      }
+
+      // Check if username already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).json({ message: "Username sudah digunakan" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      const [newUser] = await db.insert(users).values({
+        fullName,
+        username,
+        password: hashedPassword,
+        role,
+        registrationStatus: "approved",
+      });
+
+      res.status(201).json(newUser);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Update admin user
+  app.patch("/api/admin/users/:id", isAdmin, upload.none(), async (req: Request, res: Response) => {
+    const targetId = Number(req.params.id);
+    try {
+      const { fullName, username, password, role } = req.body;
+      const updateData: any = {};
+      if (fullName) updateData.fullName = fullName;
+      if (username) {
+        // Check if username is taken by another user
+        const [existingUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.username, username))
+          .limit(1);
+        if (existingUser && existingUser.id !== targetId) {
+          return res.status(400).json({ message: "Username sudah digunakan oleh user lain" });
+        }
+        updateData.username = username;
+      }
+      if (role) updateData.role = role;
+      if (password && password.trim().length > 0) {
+        updateData.password = await hashPassword(password);
+      }
+
+      await db.update(users).set(updateData).where(eq(users.id, targetId));
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, targetId)).limit(1);
+      res.json(updatedUser);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -1056,7 +1398,9 @@ export function registerRoutes(app: Express) {
       const response = [];
       for (const comp of list) {
         const photos = await db.select().from(complaintPhotos).where(eq(complaintPhotos.complaintId, comp.id));
-        response.push({ ...comp, photos });
+        // Also fetch user info
+        const [userInfo] = await db.select({ fullName: users.fullName, nik: users.nik }).from(users).where(eq(users.id, comp.userId)).limit(1);
+        response.push({ ...comp, photos, userFullName: userInfo?.fullName || null });
       }
       res.json(response);
     } catch (err: any) {
@@ -1072,6 +1416,163 @@ export function registerRoutes(app: Express) {
       res.json({ message: "Status komplain diperbarui" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH alias for client compatibility
+  app.patch("/api/admin/complaints/:id/status", isAdmin, async (req: Request, res: Response) => {
+    const targetId = Number(req.params.id);
+    const { status } = req.body; // "pending", "reviewed", "resolved"
+    try {
+      if (!["pending", "reviewed", "resolved"].includes(status)) {
+        return res.status(400).json({ message: "Status tidak valid" });
+      }
+      await db.update(complaints).set({ status }).where(eq(complaints.id, targetId));
+      res.json({ message: "Status komplain diperbarui" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Multer configuration for SQL files
+  const sqlUpload = multer({
+    dest: "uploads/",
+    fileFilter: (req, file, cb) => {
+      if (path.extname(file.originalname).toLowerCase() === ".sql") {
+        cb(null, true);
+      } else {
+        cb(new Error("Hanya file SQL yang diperbolehkan") as any, false);
+      }
+    }
+  });
+
+  // Database Backup Listing
+  app.get("/api/admin/backups", isAuthenticated, isAdmin, (req: Request, res: Response) => {
+    const backupDir = path.resolve(process.cwd(), "backups");
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    try {
+      const files = fs.readdirSync(backupDir);
+      const backupList = files
+        .filter(f => f.endsWith(".sql"))
+        .map(f => {
+          const stats = fs.statSync(path.join(backupDir, f));
+          return {
+            fileName: f,
+            sizeBytes: stats.size,
+            createdAt: stats.mtime,
+          };
+        })
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      res.json(backupList);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Database Manual Backup Creation
+  app.post("/api/admin/backup", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      return res.status(500).json({ success: false, message: "DATABASE_URL tidak dikonfigurasi" });
+    }
+
+    const backupDir = path.resolve(process.cwd(), "backups");
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    try {
+      const regex = /mysql:\/\/([^:]+):([^@]+)@([^/:]+)(?::(\d+))?\/(.+)/;
+      const matches = dbUrl.match(regex);
+      if (!matches) {
+        return res.status(500).json({ success: false, message: "Format DATABASE_URL tidak dikenal" });
+      }
+
+      const [_, user, password, host, portStr, database] = matches;
+      const port = portStr || "3306";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const fileName = `backup-${database}-${timestamp}.sql`;
+      const outputFile = path.join(backupDir, fileName);
+
+      const cmd = `mysqldump -h ${host} -P ${port} -u ${user} -p"${password}" ${database} > "${outputFile}"`;
+
+      exec(cmd, (error) => {
+        if (error) {
+          console.error(`[Manual Backup] Failed: ${error.message}`);
+          return res.status(500).json({ success: false, message: `Gagal membuat backup: ${error.message}` });
+        } else {
+          console.log(`[Manual Backup] Success: ${fileName}`);
+          return res.json({ success: true, message: "Backup database berhasil dibuat", fileName });
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  // Download SQL Backup File
+  app.get("/api/admin/backups/download/:fileName", isAuthenticated, isAdmin, (req: Request, res: Response) => {
+    const backupDir = path.resolve(process.cwd(), "backups");
+    const filePath = path.join(backupDir, req.params.fileName);
+
+    if (!filePath.startsWith(backupDir)) {
+      return res.status(403).json({ message: "Akses ditolak" });
+    }
+
+    if (fs.existsSync(filePath)) {
+      res.download(filePath);
+    } else {
+      res.status(404).json({ message: "File backup tidak ditemukan" });
+    }
+  });
+
+  // Import SQL Database file
+  app.post("/api/admin/backups/import", isAuthenticated, isAdmin, sqlUpload.single("file"), async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "File SQL wajib diunggah" });
+    }
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      return res.status(500).json({ message: "DATABASE_URL tidak dikonfigurasi" });
+    }
+
+    const filePath = req.file.path;
+
+    try {
+      const regex = /mysql:\/\/([^:]+):([^@]+)@([^/:]+)(?::(\d+))?\/(.+)/;
+      const matches = dbUrl.match(regex);
+      if (!matches) {
+        return res.status(500).json({ message: "Format DATABASE_URL tidak dikenal" });
+      }
+
+      const [_, user, password, host, portStr, database] = matches;
+      const port = portStr || "3306";
+
+      const cmd = `mysql -h ${host} -P ${port} -u ${user} -p"${password}" ${database} < "${filePath}"`;
+
+      exec(cmd, (error) => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+
+        if (error) {
+          console.error(`[Restore Database] Failed: ${error.message}`);
+          return res.status(500).json({ message: `Gagal memulihkan database: ${error.message}` });
+        } else {
+          console.log(`[Restore Database] Success restoration`);
+          return res.json({ success: true, message: "Database berhasil di-import/dipulihkan!" });
+        }
+      });
+    } catch (e: any) {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      res.status(500).json({ message: e.message });
     }
   });
 }

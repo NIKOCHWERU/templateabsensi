@@ -8,8 +8,8 @@ import { pool } from "./db.js";
 import { startBackupScheduler } from "./backup.js";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Dynamic DB Schema check and Auto-Migration
 async function runAutoMigrations() {
@@ -169,6 +169,72 @@ async function runAutoMigrations() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // 10. Create system_configs table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS system_configs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        \`key\` VARCHAR(255) UNIQUE NOT NULL,
+        \`value\` TEXT NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 11. Create announcements table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        image_url VARCHAR(512) NULL,
+        expires_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        author_id INT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 12. Create activity_logs table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        action VARCHAR(255) NOT NULL,
+        details TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_activity_logs_user_id (user_id),
+        INDEX idx_activity_logs_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Seed default system configs
+    const [configCheck]: any = await conn.query(`SELECT id FROM system_configs LIMIT 1`);
+    if (configCheck.length === 0) {
+      console.log("Seeding default system configs...");
+      const defaultConfigKeys = [
+        ["namaPt", process.env.VITE_NAMA_PT || "PT ABC"],
+        ["singkatanPt", process.env.VITE_SINGKATAN_PT || "PT ABC"],
+        ["deskripsiPwa", process.env.VITE_DESKRIPSI_PWA || "Aplikasi Absensi Tenaga Kerja"],
+        ["logoUrl", process.env.VITE_LOGO_FILE || ""],
+        ["logoInisial", process.env.VITE_LOGO_INISIAL || "A"],
+        ["rekapPrefix", process.env.VITE_REKAP_FILE_PREFIX || "REKAP_ABSENSI"],
+        ["feature_leave", process.env.FEATURE_LEAVE !== "false" ? "true" : "false"],
+        ["feature_recap", process.env.FEATURE_RECAP !== "false" ? "true" : "false"],
+        ["feature_complaint", process.env.FEATURE_COMPLAINT !== "false" ? "true" : "false"],
+        ["feature_info", process.env.FEATURE_INFO !== "false" ? "true" : "false"],
+        ["feature_mutation", process.env.FEATURE_MUTATION !== "false" ? "true" : "false"],
+        ["feature_warningLetter", process.env.FEATURE_WARNING_LETTER !== "false" ? "true" : "false"],
+        ["feature_shift", process.env.FEATURE_SHIFT !== "false" ? "true" : "false"],
+        ["feature_resignation", process.env.FEATURE_RESIGNATION !== "false" ? "true" : "false"],
+        ["feature_break", process.env.FEATURE_BREAK !== "false" ? "true" : "false"],
+      ];
+
+      for (const [key, value] of defaultConfigKeys) {
+        await conn.query(`
+          INSERT INTO system_configs (\`key\`, \`value\`)
+          VALUES (?, ?)
+        `, [key, value]);
+      }
+    }
+
 
     // --- Dynamic Column Checks for existing tables (in case columns are missing) ---
     const checkAndAddColumn = async (table: string, column: string, DDL: string) => {

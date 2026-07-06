@@ -4,14 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 interface CompanyHeaderProps {
   name?: string;
   logoUrl?: string;
+  title?: string;
 }
 
-export function CompanyHeader({ name: propName, logoUrl: propLogo }: CompanyHeaderProps) {
+export function CompanyHeader({ name: propName, logoUrl: propLogo, title }: CompanyHeaderProps) {
   const { data: config } = useQuery<any>({
     queryKey: ["/api/config"],
   });
 
-  const name = propName || config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABCD";
+  const name = propName || config?.singkatanPt || config?.namaPt || import.meta.env.VITE_SINGKATAN_PT || import.meta.env.VITE_NAMA_PT || "PT ABC";
   const logoUrl = propLogo || config?.logoUrl || import.meta.env.VITE_LOGO_FILE || "/logo_elok_buah.jpg";
   const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || name.charAt(0);
 
@@ -35,6 +36,11 @@ export function CompanyHeader({ name: propName, logoUrl: propLogo }: CompanyHead
           )}
         </div>
       </div>
+      {title && (
+        <div className="text-center mt-6 -mb-4">
+          <h2 className="text-sm font-black text-white uppercase tracking-widest">{title}</h2>
+        </div>
+      )}
     </header>
   );
 }

@@ -36,6 +36,11 @@ export default function RecapPage() {
     const queryClient = useQueryClient();
     const [isExporting, setIsExporting] = useState(false);
 
+    const { data: config } = useQuery<any>({
+        queryKey: ["/api/config"],
+    });
+    const namaPt = config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABC";
+
     const [targetDate, setTargetDate] = useState(new Date());
     const [selectedPhotoRecord, setSelectedPhotoRecord] = useState<Attendance | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -455,7 +460,7 @@ export default function RecapPage() {
                             const brkStr = totalBreakMins > 0 ? formatDuration(totalBreakMins) : `0 jam (Tanpa Istirahat)`;
                             userSummary.breakdown.push(`<span style="color:#1e293b;font-weight:600;">${dateStr}</span> : Kerja jam ${format(new Date(firstIn!), "HH.mm")} - ${format(new Date(lastOut!), "HH.mm")} istirahat ${brkStr} (Total: ${formatDuration(netWorkMins)})`);
                         } else {
-                            userSummary.breakdown.push(`<span style="color:#dc2626;font-weight:600;">${dateStr}</span> : <span style="color:#b91c1c;">Absensi tidak lengkap</span>`);
+                            userSummary.breakdown.push(`<span style="color:#dc2626;font-weight:600;">${dateStr}</span> : <span style="color:#b91c1c;">Absensi belum lengkap</span>`);
                         }
                     });
                     usersSummary.set(userId, userSummary);
@@ -491,7 +496,7 @@ export default function RecapPage() {
     <div class="sig-box"><p class="sig-label">Checked By</p><div class="sig-name">NIKO</div></div>
     <div class="sig-box"><p class="sig-label">Approved By</p><div class="sig-name">CLAVERINA</div></div>
   </div>
-  <div class="footer">Dokumen ini dicetak secara otomatis oleh Sistem Absensi PT ELOK JAYA ABADHI &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB</div>
+  <div class="footer">Dokumen ini dicetak secara otomatis oleh Sistem Absensi ${namaPt.toUpperCase()} &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB</div>
   <div class="btn-wrap"><a id="dl-btn" class="download-btn" href="#">&#11015;&nbsp; Download File</a></div>
   <script>
     var _fn = "${fileName}";
@@ -751,7 +756,7 @@ export default function RecapPage() {
     <div class="sig-box"><p class="sig-label">Checked By</p><div class="sig-name">NIKO</div></div>
     <div class="sig-box"><p class="sig-label">Approved By</p><div class="sig-name">CLAVERINA</div></div>
   </div>
-  <div class="footer">Dokumen ini dicetak secara otomatis oleh Sistem Absensi PT ELOK JAYA ABADHI &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB</div>
+  <div class="footer">Dokumen ini dicetak secara otomatis oleh Sistem Absensi ${namaPt.toUpperCase()} &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB</div>
 </body>
 </html>`;
 

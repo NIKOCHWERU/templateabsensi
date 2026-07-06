@@ -2,6 +2,8 @@ import { Route, Switch, Redirect } from "wouter";
 import { AuthProvider, useAuth } from "./hooks/use-auth.js";
 import { Toaster } from "./components/ui/toaster.js";
 import { TooltipProvider } from "./components/ui/tooltip.js";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 // Page imports
 import LoginPage from "./pages/LoginPage.js";
@@ -30,7 +32,10 @@ import WarningLetterManagementPage from "./pages/admin/WarningLetterManagementPa
 import AdminShiftPage from "./pages/admin/AdminShiftPage.js";
 import AdminManageAdminsPage from "./pages/admin/AdminManageAdminsPage.js";
 import AdminProfilePage from "./pages/admin/AdminProfilePage.js";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage.js";
+import BackupPage from "./pages/admin/BackupPage.js";
 import InfoBoardPage from "./pages/admin/InfoBoardPage.js";
+import ActivityLogsPage from "./pages/admin/ActivityLogsPage.js";
 import ComplaintsPage from "./pages/admin/ComplaintsPage.js";
 import ResignManagementPage from "./pages/admin/ResignManagementPage.js";
 import ResignHistoryPage from "./pages/admin/ResignHistoryPage.js";
@@ -95,6 +100,45 @@ function ProtectedRoute({ component: Component, roles }: { component: React.Comp
 }
 
 export default function App() {
+  const { data: config } = useQuery<any>({
+    queryKey: ["/api/config"],
+  });
+
+  useEffect(() => {
+    if (config) {
+      // 1. Update Document Title
+      document.title = `${config.singkatanPt || config.namaPt || "PT ABC"} - Sistem Absensi`;
+
+      // 2. Inject Dynamic CSS Theme Variables
+      const root = document.documentElement;
+      if (config.themePrimary) root.style.setProperty("--primary", config.themePrimary);
+      if (config.themeSecondary) root.style.setProperty("--secondary", config.themeSecondary);
+      if (config.themeAccent) root.style.setProperty("--accent", config.themeAccent);
+      if (config.themeBackground) root.style.setProperty("--background", config.themeBackground);
+      if (config.themeSidebarAccent) root.style.setProperty("--sidebar-accent", config.themeSidebarAccent);
+      if (config.themePrimary) root.style.setProperty("--ring", config.themePrimary);
+
+      // 3. Generate and Inject Dynamic Favicon SVG
+      const initial = config.logoInisial || (config.singkatanPt ? config.singkatanPt.charAt(0) : (config.namaPt ? config.namaPt.charAt(0) : "A"));
+      const faviconSvg = `
+        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+          <rect width='100' height='100' rx='22' fill='%23f97316'/>
+          <text x='50' y='72' font-family='Outfit, Arial, sans-serif' font-size='65' font-weight='900' fill='white' text-anchor='middle'>${initial}</text>
+        </svg>
+      `.trim().replace(/\s+/g, ' ');
+
+      let faviconLink = document.getElementById("dynamic-favicon") as HTMLLinkElement;
+      if (!faviconLink) {
+        faviconLink = document.createElement("link");
+        faviconLink.id = "dynamic-favicon";
+        faviconLink.rel = "icon";
+        faviconLink.type = "image/svg+xml";
+        document.head.appendChild(faviconLink);
+      }
+      faviconLink.href = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
+    }
+  }, [config]);
+
   return (
     <AuthProvider>
       <TooltipProvider>
@@ -173,10 +217,19 @@ export default function App() {
               {() => <AdminLayout><ProtectedRoute component={AdminShiftPage} roles={["admin", "superadmin"]} /></AdminLayout>}
             </Route>
             <Route path="/admin/manage-admins">
-              {() => <AdminLayout><ProtectedRoute component={AdminManageAdminsPage} roles={["superadmin"]} /></AdminLayout>}
+              {() => <AdminLayout><ProtectedRoute component={AdminManageAdminsPage} roles={["admin", "superadmin"]} /></AdminLayout>}
+            </Route>
+            <Route path="/admin/activity-logs">
+              {() => <AdminLayout><ProtectedRoute component={ActivityLogsPage} roles={["superadmin"]} /></AdminLayout>}
             </Route>
             <Route path="/admin/profile">
               {() => <AdminLayout><ProtectedRoute component={AdminProfilePage} roles={["admin", "superadmin"]} /></AdminLayout>}
+            </Route>
+            <Route path="/admin/settings">
+              {() => <AdminLayout><ProtectedRoute component={AdminSettingsPage} roles={["admin", "superadmin"]} /></AdminLayout>}
+            </Route>
+            <Route path="/admin/backup">
+              {() => <AdminLayout><ProtectedRoute component={BackupPage} roles={["admin", "superadmin"]} /></AdminLayout>}
             </Route>
             <Route path="/admin/info-board">
               {() => <AdminLayout><ProtectedRoute component={InfoBoardPage} roles={["admin", "superadmin"]} /></AdminLayout>}

@@ -375,7 +375,7 @@ export default function RegistrationPage() {
                             name="joinDate"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Tahun bergabung ke elok</FormLabel>
+                                <FormLabel>Tahun Bergabung Ke Perusahaan</FormLabel>
                                 <FormControl><Input type="number" placeholder="Contoh: 2024" {...field} /></FormControl>
                                 <FormMessage />
                               </FormItem>

@@ -22,6 +22,10 @@ import { calculateDailyTotal, formatDuration } from "@/lib/attendance";
 
 export default function AttendanceSummaryPage() {
     const [, setLocation] = useLocation();
+    const { data: config } = useQuery<any>({
+        queryKey: ["/api/config"],
+    });
+    const namaPt = config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABC";
     // State for selected period (e.g., Feb 2026 means Jan 26 - Feb 25)
     const [targetDate, setTargetDate] = useState(new Date());
     const [customStartDate, setCustomStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -203,7 +207,7 @@ export default function AttendanceSummaryPage() {
             periodStr = format(targetDate, "MMMM yyyy", { locale: id }).toUpperCase();
         }
 
-        const fileName = `LAPORAN ABSENSI SUMMARY PT EJA - ${periodStr}.html`;
+        const fileName = `LAPORAN ABSENSI SUMMARY ${config?.singkatanPt || "PT ABC"} - ${periodStr}.html`;
 
         let tableHeader: string = "";
         let tableRows: string = "";
@@ -398,7 +402,7 @@ export default function AttendanceSummaryPage() {
   <div class="letterhead">
     <img src="${logoBase64}" class="logo-img" alt="Logo" />
     <div class="company-block">
-      <h1>PT Elok Jaya Abadhi</h1>
+      <h1>${namaPt}</h1>
       <p class="tagline">Sistem Manajemen Kehadiran Digital</p>
     </div>
   </div>
@@ -406,7 +410,7 @@ export default function AttendanceSummaryPage() {
   <hr class="hr-thin" />
 
   <div class="report-meta">
-    <h2>Laporan Ringkasan Absensi PT EJA</h2>
+    <h2>Laporan Ringkasan Absensi ${config?.singkatanPt || "PT ABC"}</h2>
     <p class="sub">Tipe: ${reportType === 'daily' ? 'Harian' : reportType === 'weekly' ? 'Mingguan' : reportType === 'custom' ? 'Kustom' : 'Bulanan'}</p>
     <p class="sub">Rentang Waktu: ${format(startDate, "EEEE, d MMMM yyyy", { locale: id })} - ${format(endDate, "EEEE, d MMMM yyyy", { locale: id })}</p>
   </div>
@@ -434,7 +438,7 @@ export default function AttendanceSummaryPage() {
   </div>
 
   <div class="footer">
-    Dokumen ini dicetak secara otomatis oleh Sistem Absensi PT Elok Jaya Abadhi &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB &mdash; Harap simpan sebagai arsip resmi perusahaan.
+    Dokumen ini dicetak secara otomatis oleh Sistem Absensi ${namaPt} &mdash; ${format(new Date(), "d MMMM yyyy, HH:mm", { locale: id })} WIB &mdash; Harap simpan sebagai arsip resmi perusahaan.
   </div>
 
   <div class="btn-wrap">

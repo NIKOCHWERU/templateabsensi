@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useMonthlyAttendance } from "@/hooks/use-monthly-attendance";
 import { BottomNav } from "@/components/BottomNav";
+import { CompanyHeader } from "@/components/CompanyHeader";
 import { AttendanceCalendar } from "@/components/AttendanceCalendar";
 import { useState } from "react";
 import { format, subMonths, addMonths, startOfWeek, endOfWeek, isWithinInterval, subWeeks, addWeeks, subDays, addDays } from "date-fns";
@@ -44,11 +45,39 @@ export default function RecapPage() {
     else setWeekDate(addWeeks(weekDate, 1));
   };
 
-  const handleDateSelect = (_date: Date, record?: Attendance) => {
-    if (record) {
-      setSelectedRecord(record);
-      setIsModalOpen(true);
+  const handleDateSelect = (date: Date, record?: Attendance) => {
+    setSelectedRecord(record || null);
+    // If no record exists, we can still set a temporary structure for display
+    if (!record) {
+      setSelectedRecord({
+        id: -1,
+        userId: user?.id || 0,
+        date: date.toISOString(),
+        status: 'absent',
+        checkIn: null,
+        checkOut: null,
+        breakStart: null,
+        breakEnd: null,
+        checkInPhoto: null,
+        checkInLocation: null,
+        breakStartPhoto: null,
+        breakStartLocation: null,
+        breakEndPhoto: null,
+        breakEndLocation: null,
+        checkOutPhoto: null,
+        checkOutLocation: null,
+        shiftId: null,
+        shift: null,
+        sessionNumber: 1,
+        notes: "Tidak ada riwayat absensi (Alpa/Libur)",
+        lateReason: null,
+        lateReasonPhoto: null,
+        permitExitAt: null,
+        permitResumeAt: null,
+        isFakeGps: false
+      } as any);
     }
+    setIsModalOpen(true);
   };
 
   // Get filtered data based on view mode
@@ -121,36 +150,30 @@ export default function RecapPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-primary pt-10 pb-20 px-6 rounded-b-[2.5rem] shadow-lg mb-[-3rem]">
-        <div className="flex justify-between items-start mb-1">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Riwayat Absensi</h1>
-            <p className="text-white/80 text-sm">PT ELOK JAYA ABADHI</p>
-          </div>
-          <div className="bg-white/10 p-1 rounded-xl flex gap-1">
-            <button
-              onClick={() => setReportType('daily')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${reportType === 'daily' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white'}`}
-            >
-              Harian
-            </button>
-            <button
-              onClick={() => setReportType('monthly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${reportType === 'monthly' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white'}`}
-            >
-              Bulanan
-            </button>
-            <button
-              onClick={() => setReportType('custom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${reportType === 'custom' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white'}`}
-            >
-              Kustom
-            </button>
-          </div>
-        </div>
-      </div>
+      <CompanyHeader title="Riwayat Absensi" />
 
-      <main className="px-4 max-w-lg mx-auto space-y-6">
+      <main className="px-4 -mt-6 max-w-lg mx-auto space-y-6">
+        {/* Report Type Selector */}
+        <div className="bg-white border border-slate-150 p-1 rounded-2xl flex gap-1 shadow-sm relative z-10">
+          <button
+            onClick={() => setReportType('daily')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${reportType === 'daily' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Harian
+          </button>
+          <button
+            onClick={() => setReportType('monthly')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${reportType === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Bulanan
+          </button>
+          <button
+            onClick={() => setReportType('custom')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${reportType === 'custom' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Kustom
+          </button>
+        </div>
 
         {/* Calendar Card - Only show in Monthly mode */}
         {reportType === 'monthly' && (

@@ -860,7 +860,7 @@ export default function AdminEmployeeList() {
                                     <Section title="Pekerjaan" icon={<Briefcase className="w-4 h-4" />}>
                                         <DataRow label="Jabatan" value={toTitleCase((viewEmployee as any).position)} />
                                         <DataRow label="Cabang" value={toTitleCase((viewEmployee as any).branch)} />
-                                        <DataRow label="Tahun bergabung" value={(viewEmployee as any).joinDate} />
+                                        <DataRow label="Tahun Bergabung Ke Perusahaan" value={(viewEmployee as any).joinDate} />
                                         <DataRow label="Status Kerja" value={toTitleCase((viewEmployee as any).employmentStatus)} />
                                         <div className="flex justify-between items-center text-sm pt-1">
                                             <span className="text-slate-500">Status Data:</span>
@@ -1373,7 +1373,7 @@ function DocumentBox({ label, url, isDrive }: { label: string; url?: string | nu
                         >
                             <Eye className="w-5 h-5 mb-1" />
                             <span className="text-[9px] font-bold uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">
-                                {isLocal ? 'Lihat Foto' : 'Buka Drive'}
+                                Buka File
                             </span>
                         </div>
                     </>

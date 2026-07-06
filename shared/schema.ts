@@ -183,6 +183,25 @@ export const warningLetters = mysqlTable("warning_letters", {
   userIdIdx: index("idx_warning_letters_user_id").on(table.userId),
 }));
 
+// System Configurations Table
+export const systemConfigs = mysqlTable("system_configs", {
+  id: int("id").primaryKey().autoincrement(),
+  key: varchar("key", { length: 255 }).unique().notNull(),
+  value: text("value").notNull(),
+});
+
+// Activity Logs Table
+export const activityLogs = mysqlTable("activity_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  action: varchar("action", { length: 255 }).notNull(),
+  details: text("details").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_activity_logs_user_id").on(table.userId),
+  createdAtIdx: index("idx_activity_logs_created_at").on(table.createdAt),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   attendanceRecords: many(attendance),
@@ -193,6 +212,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   resignations: many(resignations),
   mutations: many(mutations),
   warningLetters: many(warningLetters),
+  activityLogs: many(activityLogs),
 }));
 
 export const shiftsRelations = relations(shifts, ({ many }) => ({
@@ -246,6 +266,13 @@ export const mutationsRelations = relations(mutations, ({ one }) => ({
   }),
 }));
 
+export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [activityLogs.userId],
+    references: [users.id],
+  }),
+}));
+
 // Schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertShiftSchema = createInsertSchema(shifts).omit({ id: true });
@@ -257,6 +284,8 @@ export const insertLeaveRequestSchema = createInsertSchema(leaveRequests).omit({
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
 export const insertResignationSchema = createInsertSchema(resignations).omit({ id: true, createdAt: true });
 export const insertMutationSchema = createInsertSchema(mutations).omit({ id: true, createdAt: true });
+export const insertSystemConfigSchema = createInsertSchema(systemConfigs).omit({ id: true });
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -279,3 +308,7 @@ export type Resignation = typeof resignations.$inferSelect;
 export type InsertResignation = z.infer<typeof insertResignationSchema>;
 export type Mutation = typeof mutations.$inferSelect;
 export type InsertMutation = z.infer<typeof insertMutationSchema>;
+export type SystemConfig = typeof systemConfigs.$inferSelect;
+export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;

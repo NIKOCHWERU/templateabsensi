@@ -6,17 +6,22 @@ const CLIENT_SECRET = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-export const isDriveConfigured = !!(CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN && FOLDER_ID);
+const IS_PRODUCTION = process.env.NODE_ENV === "production" || process.env.APP_ENV === "production";
+export const isDriveConfigured = IS_PRODUCTION && !!(CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN && FOLDER_ID);
 
 if (!isDriveConfigured) {
-    console.warn("⚠️  Google Drive credentials not fully configured. Using local file storage fallback.");
+    if (!IS_PRODUCTION) {
+        console.log("ℹ️  Environment is development. Using local file storage fallback.");
+    } else {
+        console.warn("⚠️  Google Drive credentials not fully configured. Using local file storage fallback.");
+    }
 }
 
 const oauth2Client = isDriveConfigured 
     ? new google.auth.OAuth2(
         CLIENT_ID,
         CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URL || "http://localhost:8000/auth/google/callback"
+        process.env.GOOGLE_REDIRECT_URL || (process.env.APP_DOMAIN ? `${process.env.APP_DOMAIN.replace(/\/$/, "")}/auth/google/callback` : "http://localhost:5000/auth/google/callback")
       )
     : null;
 

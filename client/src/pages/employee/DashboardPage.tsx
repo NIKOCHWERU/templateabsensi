@@ -137,6 +137,10 @@ export default function EmployeeDashboard() {
         queryKey: ["/api/employee/documents"],
     });
 
+    const { data: config } = useQuery<any>({
+        queryKey: ["/api/config"],
+    });
+
     const [currentNotification, setCurrentNotification] = useState<{
         id: number;
         type: "mutasi" | "promosi" | "demosi" | "warningLetter" | "resignation";
@@ -271,15 +275,11 @@ export default function EmployeeDashboard() {
         queryKey: ["/api/shifts"],
     });
 
-    const defaultShifts = [
-        { id: -1, name: "Shift 1", checkInTime: "07:00", checkOutTime: "17:00" },
-        { id: -2, name: "Shift 2 (Middle)", checkInTime: "11:00", checkOutTime: "21:00" },
-        { id: -3, name: "Shift 3", checkInTime: "13:00", checkOutTime: "23:00" },
-        { id: -4, name: "Long Shift", checkInTime: "07:00", checkOutTime: "23:00" },
-        { id: -5, name: "Kasir Long Shift", checkInTime: "11:00", checkOutTime: "23:00" }
-    ];
+    // Default shift when none configured in DB
+    const DEFAULT_SHIFT = { id: -1, name: "Shift Reguler", checkInTime: "08:00", checkOutTime: "17:00" };
 
-    const shiftList = backendShiftList && backendShiftList.length > 0 ? backendShiftList : defaultShifts;
+    const hasDBShifts = !!(backendShiftList && backendShiftList.length > 0);
+    const shiftList = hasDBShifts ? backendShiftList : [DEFAULT_SHIFT];
 
     // Push Notifications State
     const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unavailable'>(
@@ -433,6 +433,21 @@ export default function EmployeeDashboard() {
     const startAttendanceFlow = async (actionFn: (data: any) => Promise<any>, successTitle: string, isClockIn = false) => {
         if (isClockIn && sessionCount === 0) {
             setActiveAction({ fn: actionFn, successTitle, type: 'attendance' });
+            // Jika tidak ada shift di DB, langsung gunakan default 08:00-17:00 tanpa modal
+            if (!hasDBShifts) {
+                setSelectedShiftId(DEFAULT_SHIFT.id);
+                const now = new Date();
+                const [sHour, sMinute] = DEFAULT_SHIFT.checkInTime.split(':').map(Number);
+                const isLate = (now.getHours() * 60 + now.getMinutes()) > (sHour * 60 + sMinute);
+                const wrappedFn = async (data: any) => actionFn({ ...data, shiftId: DEFAULT_SHIFT.id, shift: DEFAULT_SHIFT.name });
+                setActiveAction({ fn: wrappedFn, successTitle, type: 'attendance' });
+                if (isLate) {
+                    setIsLateReasonModalOpen(true);
+                } else {
+                    setIsCameraOpen(true);
+                }
+                return;
+            }
             setIsShiftModalOpen(true);
             return;
         }
@@ -646,6 +661,7 @@ export default function EmployeeDashboard() {
     const hasCheckedOut = !!today?.checkOut;
     const isBreak = !!today?.breakStart && !today?.breakEnd;
     const hasBreakEnded = !!today?.breakEnd;
+    const isBreakFeatureActive = config?.features?.break !== false;
 
     const getStatusText = () => {
         if (!today) return "Belum Absen";
@@ -772,8 +788,8 @@ export default function EmployeeDashboard() {
             );
         }
 
-        // --- IN PROGRESS: waiting for break start ---
-        if (!isBreak && !hasBreakEnded) {
+        // --- IN PROGRESS: waiting for break start (skip if break feature is disabled) ---
+        if (isBreakFeatureActive && !isBreak && !hasBreakEnded) {
             return (
                 <Button
                     onClick={() => startAttendanceFlow(breakStart, "Selamat Istirahat")}
@@ -790,8 +806,8 @@ export default function EmployeeDashboard() {
             );
         }
 
-        // --- IN BREAK: waiting for break end ---
-        if (isBreak && !hasBreakEnded) {
+        // --- IN BREAK: waiting for break end (skip if break feature is disabled) ---
+        if (isBreakFeatureActive && isBreak && !hasBreakEnded) {
             return (
                 <Button
                     onClick={() => startAttendanceFlow(breakEnd, "Selamat Bekerja Kembali")}
@@ -808,8 +824,8 @@ export default function EmployeeDashboard() {
             );
         }
 
-        // --- READY TO CLOCK OUT ---
-        if (hasCheckedIn && hasBreakEnded && !hasCheckedOut) {
+        // --- READY TO CLOCK OUT (If break feature is active, check hasBreakEnded. Otherwise, just check hasCheckedIn and not hasCheckedOut) ---
+        if (hasCheckedIn && (!isBreakFeatureActive || hasBreakEnded) && !hasCheckedOut) {
             return (
                 <Button
                     onClick={handleClockOutClick}
@@ -895,7 +911,7 @@ export default function EmployeeDashboard() {
                 <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="bg-white rounded-3xl p-5 shadow-xl shadow-black/5 border border-orange-100 flex items-center justify-between relative overflow-hidden"
+                    className="bg-white rounded-3xl p-5 shadow-xl shadow-black/5 border border-primary/10 flex items-center justify-between relative overflow-hidden"
                 >
                     <div className="space-y-1.5 z-10">
                         <h2 className="text-lg font-bold text-gray-800">{toTitleCase(user?.fullName)}</h2>
@@ -903,7 +919,7 @@ export default function EmployeeDashboard() {
                             <p>NIK: <span className="font-semibold text-gray-700">{user?.username}</span></p>
                             <p>Cabang: <span className="font-semibold text-gray-700">{toTitleCase(user?.branch) || '-'}</span></p>
                             <p>Jabatan: <span className="font-semibold text-gray-700">{toTitleCase(user?.position) || '-'}</span></p>
-                            <p>Shift: <span className="font-bold text-orange-600">
+                            <p>Shift: <span className="font-bold text-primary">
                                 {(() => {
                                     const baseShift = (todaySessions && todaySessions.length > 0) ? (todaySessions[0] as any).shift : (shiftList?.find(s => s.id === selectedShiftId)?.name);
                                     if (!baseShift) return 'Belum Absen Masuk';
@@ -918,7 +934,7 @@ export default function EmployeeDashboard() {
                             {user?.photoUrl ? (
                                 <img src={user.photoUrl} alt="User" className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-orange-50 text-orange-500 font-bold text-2xl">
+                                <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-2xl">
                                     {user?.fullName?.charAt(0)}
                                 </div>
                             )}
@@ -1028,7 +1044,7 @@ export default function EmployeeDashboard() {
                     <h4 className="font-bold text-gray-800 border-b pb-2">Riwayat Hari Ini</h4>
 
                     {/* ⚠️ Warning: Sedang istirahat belum selesai */}
-                    {isBreak && !hasBreakEnded && (
+                    {isBreakFeatureActive && isBreak && !hasBreakEnded && (
                         <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl p-3">
                             <Timer className="text-orange-500 w-5 h-5 mt-0.5" />
                             <div>
@@ -1038,8 +1054,8 @@ export default function EmployeeDashboard() {
                         </div>
                     )}
 
-                    {/* ⚠️ Warning: Sudah check-in & selesai istirahat, belum absen pulang */}
-                    {hasCheckedIn && hasBreakEnded && !hasCheckedOut && (
+                    {/* ⚠️ Warning: Sudah check-in & selesai istirahat (atau istirahat dinonaktifkan), belum absen pulang */}
+                    {hasCheckedIn && (!isBreakFeatureActive || hasBreakEnded) && !hasCheckedOut && (
                         <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
                             <Bell className="text-red-500 w-5 h-5 mt-0.5" />
                             <div>
@@ -1049,8 +1065,8 @@ export default function EmployeeDashboard() {
                         </div>
                     )}
 
-                    {/* ⚠️ Warning: Sudah check-in, belum mulai istirahat, belum pulang */}
-                    {hasCheckedIn && !isBreak && !hasBreakEnded && !hasCheckedOut && (
+                    {/* ⚠️ Warning: Sudah check-in, belum mulai istirahat, belum pulang (hanya tampil jika fitur istirahat aktif) */}
+                    {isBreakFeatureActive && hasCheckedIn && !isBreak && !hasBreakEnded && !hasCheckedOut && (
                         <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
                             <Info className="text-blue-500 w-5 h-5 mt-0.5" />
                             <div>

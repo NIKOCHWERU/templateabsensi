@@ -9,8 +9,7 @@ export function useMonthlyAttendance(params: { month?: string, startDate?: strin
     if (params.userId) queryParams.append("userId", params.userId.toString());
 
     return useQuery<Attendance[]>({
-        queryKey: [`/api/attendance?${queryParams.toString()}`],
+        queryKey: [`/api/attendance/history?${queryParams.toString()}`],
         enabled: !!(params.month || (params.startDate && params.endDate)),
-        refetchInterval: 5000,
     });
 }

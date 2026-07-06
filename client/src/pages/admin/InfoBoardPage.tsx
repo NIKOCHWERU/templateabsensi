@@ -25,7 +25,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
-import ReactQuill from 'react-quill';
 
 // Schema for form since we handle file upload manually
 const formSchema = z.object({
@@ -59,23 +58,6 @@ export default function InfoBoardPage() {
             expiresAt: "",
         }
     });
-
-    const quillModules = {
-        toolbar: [
-            [{ 'header': [1, 2, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-        ],
-    };
-
-    const quillFormats = [
-        'header',
-        'bold', 'italic', 'underline', 'strike',
-        'color', 'background',
-        'list', 'bullet'
-    ];
 
     const createMutation = useMutation({
         mutationFn: async (values: z.infer<typeof formSchema>) => {
@@ -222,6 +204,90 @@ export default function InfoBoardPage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <Dialog open={open} onOpenChange={handleCloseModal}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-gray-800">
+                            {editingAnnouncement ? "Edit Informasi" : "Tambah Informasi Baru"}
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-gray-500">
+                            Isi formulir di bawah ini untuk menerbitkan pengumuman di papan informasi karyawan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit((v) => editingAnnouncement ? updateMutation.mutate(v) : createMutation.mutate(v))} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="title"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="font-bold text-gray-700">Judul Informasi</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="Masukkan judul pengumuman..." {...field} className="rounded-xl" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="content"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="font-bold text-gray-700">Konten / Isi Informasi</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="Tulis informasi pengumuman di sini..."
+                                                className="min-h-[180px] rounded-xl font-medium border border-gray-200"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="expiresAt"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="font-bold text-gray-700">Tanggal Berakhir (Opsional)</FormLabel>
+                                            <FormControl>
+                                                <Input type="date" {...field} className="rounded-xl" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormItem>
+                                    <FormLabel className="font-bold text-gray-700">Gambar Pendukung (Opsional)</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+                                            className="rounded-xl cursor-pointer"
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-4">
+                                <Button type="button" variant="outline" onClick={() => handleCloseModal(false)} className="rounded-xl">
+                                    Batal
+                                </Button>
+                                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="bg-primary hover:bg-primary/95 text-white rounded-xl font-bold px-6">
+                                    {createMutation.isPending || updateMutation.isPending ? (
+                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                    ) : null}
+                                    {editingAnnouncement ? "Simpan Perubahan" : "Terbitkan Informasi"}
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
             
 
             <div className="space-y-6">
@@ -240,7 +306,7 @@ export default function InfoBoardPage() {
             </div>
 
             <div className="space-y-6">
-                {isLoading ? (
+                {isLoading && (!announcements || announcements.length === 0) ? (
                     <div className="flex justify-center p-10"><Loader2 className="animate-spin text-primary" /></div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

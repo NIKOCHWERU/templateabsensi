@@ -14,13 +14,11 @@ export function startBackupScheduler() {
     fs.mkdirSync(backupDir, { recursive: true });
   }
 
-  console.log("Database backup scheduler initialized (every 30 minutes).");
+  console.log("Database backup scheduler initialized (runs daily at 00:00).");
 
-  // Run the backup task
   const runBackup = () => {
     try {
       // Parse mysql://user:password@host:port/database
-      // Handles optional port e.g. mysql://user:password@host/database
       const regex = /mysql:\/\/([^:]+):([^@]+)@([^/:]+)(?::(\d+))?\/(.+)/;
       const matches = dbUrl.match(regex);
       
@@ -50,7 +48,21 @@ export function startBackupScheduler() {
     }
   };
 
-  // Run immediately on startup, then every 30 minutes
+  // Keep track of the date of the last backup to prevent multiple backups in the same minute
+  let lastBackupDate = "";
+
+  const checkAndRunBackup = () => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+    
+    // Check if it's 00:00 and we haven't backed up today
+    if (now.getHours() === 0 && now.getMinutes() === 0 && lastBackupDate !== todayStr) {
+      lastBackupDate = todayStr;
+      runBackup();
+    }
+  };
+
+  // Run on startup once, then check every minute for 00:00
   setTimeout(runBackup, 1000);
-  setInterval(runBackup, 30 * 60 * 1000);
+  setInterval(checkAndRunBackup, 60 * 1000);
 }

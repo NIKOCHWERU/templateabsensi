@@ -23,6 +23,7 @@ interface Complaint {
     description: string;
     status: "pending" | "reviewed" | "resolved";
     createdAt: string;
+    photos?: ComplaintPhoto[];
 }
 
 interface ComplaintPhoto {
@@ -44,15 +45,11 @@ export default function ComplaintPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data: complaints = [], isLoading } = useQuery<Complaint[]>({
-        queryKey: ["/api/complaints"],
+        queryKey: ["/api/employee/complaints"],
         refetchInterval: 5000,
     });
 
-    const { data: complaintPhotos = [] } = useQuery<ComplaintPhoto[]>({
-        queryKey: [`/api/complaints/${selectedComplaint?.id}/photos`],
-        enabled: !!selectedComplaint,
-        refetchInterval: 5000,
-    });
+    const complaintPhotos = selectedComplaint?.photos || [];
 
     const submitMutation = useMutation({
         mutationFn: async () => {
@@ -62,7 +59,7 @@ export default function ComplaintPage() {
                 photos: photos.map(p => ({ url: p.url, caption: p.caption }))
             };
 
-            const res = await fetch("/api/complaints", {
+            const res = await fetch("/api/employee/complaints", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
@@ -72,7 +69,7 @@ export default function ComplaintPage() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/complaints"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/employee/complaints"] });
             setIsFormOpen(false);
             setTitle("");
             setDescription("");
@@ -160,15 +157,10 @@ export default function ComplaintPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
-            <CompanyHeader />
+            <CompanyHeader title="Pengaduan Saya" />
 
-            <main className="px-4 -mt-8 max-w-lg mx-auto space-y-4">
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="flex items-center justify-between"
-                >
-                    <h2 className="text-lg font-bold text-gray-800">Pengaduan Saya</h2>
+            <main className="px-4 -mt-6 max-w-lg mx-auto space-y-4">
+                <div className="flex justify-end mb-2">
                     <Button
                         onClick={() => setIsFormOpen(true)}
                         size="sm"
@@ -176,7 +168,7 @@ export default function ComplaintPage() {
                     >
                         <Plus className="w-4 h-4 mr-1" /> Buat Pengaduan
                     </Button>
-                </motion.div>
+                </div>
 
                 {isLoading ? (
                     <div className="flex justify-center py-12">

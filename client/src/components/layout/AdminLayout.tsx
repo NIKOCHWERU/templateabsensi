@@ -17,7 +17,9 @@ import {
     ChevronDown,
     ChevronRight,
     Bell,
-    AlertTriangle
+    AlertTriangle,
+    Settings,
+    Database
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -87,9 +89,9 @@ function AdminSidebarHeader() {
         queryKey: ["/api/config"],
     });
 
-    const namaPt = config?.namaPt || import.meta.env.VITE_NAMA_PT || "PT ABC";
+    const singkatanPt = config?.singkatanPt || config?.namaPt || import.meta.env.VITE_SINGKATAN_PT || import.meta.env.VITE_NAMA_PT || "PT ABC";
     const logoUrl = config?.logoUrl || config?.logoUrl !== "/logo_elok_buah.jpg" ? config?.logoUrl : null;
-    const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || namaPt.charAt(0);
+    const logoInisial = config?.logoInisial || import.meta.env.VITE_LOGO_INISIAL || singkatanPt.charAt(0);
 
     return (
         <div className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border bg-white min-h-[4rem]">
@@ -103,7 +105,7 @@ function AdminSidebarHeader() {
             {state === "expanded" && (
                 <div className="flex flex-col min-w-0 transition-opacity duration-200">
                     <h1 className="text-sm font-black text-gray-900 tracking-tight leading-tight truncate uppercase">
-                        {namaPt}
+                        {singkatanPt}
                     </h1>
                     <p className="text-[10px] text-primary font-bold tracking-wider leading-none">
                         PANEL ADMIN
@@ -332,6 +334,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const { logoutMutation, user } = useAuth();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [notifOpen, setNotifOpen] = useState(false);
+    const notifRef = useRef<HTMLDivElement>(null);
 
     const { data: config } = useQuery<any>({
         queryKey: ["/api/config"],
@@ -344,7 +348,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
 
     const { data: leaveRequests } = useQuery<{ status: string }[]>({
-        queryKey: ["/api/admin/attendance/leave/list"],
+        queryKey: ["/api/admin/leave-requests"],
         refetchInterval: 5000,
     });
 
@@ -364,6 +368,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         function handleClickOutside(event: MouseEvent) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setDropdownOpen(false);
+            }
+            if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+                setNotifOpen(false);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -405,7 +412,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         icon: AlertTriangle,
                     }
                 ] : []),
-                ...(user?.role === 'superadmin' ? [
+                ...((user?.role === 'superadmin' || user?.role === 'admin') ? [
                     {
                         title: "Kelola Admin",
                         url: "/admin/manage-admins",
@@ -538,6 +545,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ],
             }
         ] : []),
+        {
+            title: "Pengaturan Sistem",
+            items: [
+                {
+                    title: "Pengaturan Fitur",
+                    url: "/admin/settings",
+                    icon: Settings,
+                },
+                {
+                    title: "Backup & Restore",
+                    url: "/admin/backup",
+                    icon: Database,
+                },
+                ...(user?.role === 'superadmin' ? [
+                    {
+                        title: "Riwayat Aktivitas",
+                        url: "/admin/activity-logs",
+                        icon: History,
+                    }
+                ] : []),
+            ]
+        }
     ];
 
     return (
@@ -582,7 +611,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block" />
                             <div className="hidden lg:flex items-center">
                                 <span className="text-xs font-black text-primary bg-orange-50/80 border border-orange-100 px-3 py-1 rounded-full uppercase tracking-wider">
-                                    {import.meta.env.VITE_NAMA_PT || "PT ABC"}
+                                    {config?.singkatanPt || config?.namaPt || import.meta.env.VITE_SINGKATAN_PT || import.meta.env.VITE_NAMA_PT || "PT ABC"}
                                 </span>
                             </div>
                         </div>
@@ -595,20 +624,85 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
                         {/* Right Area */}
                         <div className="flex items-center gap-2 sm:gap-4">
-                            {/* Notifications Bell */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setLocation("/admin/complaints")}
-                                    className="relative flex items-center justify-center w-10 h-10 rounded-full border border-gray-100 bg-gray-50 hover:bg-gray-100 text-gray-600 transition-all hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
-                                >
-                                    <Bell className="w-5 h-5" />
-                                    {totalNotifications > 0 && (
-                                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
-                                            {totalNotifications}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
+                             {/* Notifications Bell */}
+                             <div className="relative" ref={notifRef}>
+                                 <button
+                                     onClick={() => setNotifOpen(!notifOpen)}
+                                     className="relative flex items-center justify-center w-10 h-10 rounded-full border border-gray-100 bg-gray-50 hover:bg-gray-100 text-gray-600 transition-all hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
+                                 >
+                                     <Bell className="w-5 h-5" />
+                                     {totalNotifications > 0 && (
+                                         <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                                             {totalNotifications}
+                                         </span>
+                                     )}
+                                 </button>
+
+                                 {notifOpen && (
+                                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-gray-100 shadow-xl z-50 py-2 overflow-hidden">
+                                         <div className="px-4 py-2 border-b border-gray-50 flex items-center justify-between">
+                                             <span className="font-bold text-gray-800 text-sm">Notifikasi Masuk</span>
+                                             {totalNotifications > 0 && (
+                                                 <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                     {totalNotifications} Baru
+                                                 </span>
+                                             )}
+                                         </div>
+                                         <div className="max-h-[300px] overflow-y-auto divide-y divide-gray-50">
+                                             {pendingComplaintsCount > 0 ? (
+                                                 <div 
+                                                     onClick={() => { setLocation("/admin/complaints"); setNotifOpen(false); }}
+                                                     className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start"
+                                                 >
+                                                     <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
+                                                         <MessageSquare className="w-4 h-4" />
+                                                     </div>
+                                                     <div>
+                                                         <p className="text-xs font-bold text-gray-700">Pengaduan Tenaga Kerja</p>
+                                                         <p className="text-[10px] text-gray-500 mt-0.5">Ada {pendingComplaintsCount} pengaduan baru yang memerlukan tanggapan.</p>
+                                                     </div>
+                                                 </div>
+                                             ) : null}
+
+                                             {pendingLeaveCount > 0 ? (
+                                                 <div 
+                                                     onClick={() => { setLocation("/admin/leaves"); setNotifOpen(false); }}
+                                                     className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start"
+                                                 >
+                                                     <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                                                         <Calendar className="w-4 h-4" />
+                                                     </div>
+                                                     <div>
+                                                         <p className="text-xs font-bold text-gray-700">Pengajuan Cuti Karyawan</p>
+                                                         <p className="text-[10px] text-gray-500 mt-0.5">Ada {pendingLeaveCount} pengajuan cuti baru menunggu persetujuan Anda.</p>
+                                                     </div>
+                                                 </div>
+                                             ) : null}
+
+                                             {pendingVerificationCount > 0 ? (
+                                                 <div 
+                                                     onClick={() => { setLocation("/admin/verification"); setNotifOpen(false); }}
+                                                     className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start"
+                                                 >
+                                                     <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0 mt-0.5">
+                                                         <Users className="w-4 h-4" />
+                                                     </div>
+                                                     <div>
+                                                         <p className="text-xs font-bold text-gray-700">Verifikasi Registrasi Baru</p>
+                                                         <p className="text-[10px] text-gray-500 mt-0.5">Ada {pendingVerificationCount} registrasi akun karyawan baru menunggu verifikasi.</p>
+                                                     </div>
+                                                 </div>
+                                             ) : null}
+
+                                             {totalNotifications === 0 && (
+                                                 <div className="py-8 text-center text-xs text-gray-400">
+                                                     Tidak ada notifikasi baru masuk.
+                                                 </div>
+                                             )}
+                                         </div>
+                                     </div>
+                                 )}
+                             </div>
 
                             <div className="h-6 w-px bg-gray-200" />
 
