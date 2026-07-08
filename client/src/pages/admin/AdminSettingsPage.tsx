@@ -120,6 +120,8 @@ export default function AdminSettingsPage() {
   const [hexAccent, setHexAccent] = useState("#ffedd5");
   const [hexBackground, setHexBackground] = useState("#ffffff");
   const [hexSidebarAccent, setHexSidebarAccent] = useState("#fff7ed");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoInisial, setLogoInisial] = useState("");
   const [features, setFeatures] = useState({
     leave: true,
     recap: true,
@@ -143,6 +145,8 @@ export default function AdminSettingsPage() {
       setHexAccent(hslToHex(config.themeAccent || "24 95% 93%"));
       setHexBackground(hslToHex(config.themeBackground || "0 0% 100%"));
       setHexSidebarAccent(hslToHex(config.themeSidebarAccent || "24 95% 97%"));
+      setLogoUrl(config.logoUrl || "");
+      setLogoInisial(config.logoInisial || "");
       if (config.features) {
         setFeatures({
           leave: config.features.leave !== false,
@@ -196,6 +200,8 @@ export default function AdminSettingsPage() {
       singkatanPt,
       deskripsiPwa,
       rekapPrefix,
+      logoUrl,
+      logoInisial,
       themePrimary: derived.themePrimary,
       themeSecondary: derived.themeSecondary,
       themeAccent: derived.themeAccent,
@@ -277,6 +283,27 @@ export default function AdminSettingsPage() {
                   value={rekapPrefix}
                   onChange={(e) => setRekapPrefix(e.target.value)}
                   placeholder="Contoh: REKAP_ABSENSI"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">URL Logo Aplikasi (Gambar/Ikon)</Label>
+                <Input
+                  className="rounded-xl border-gray-200 text-xs"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="Contoh: /uploads/nama_file.png atau link gambar"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Inisial Singkat Logo</Label>
+                <Input
+                  className="rounded-xl border-gray-200 text-xs"
+                  value={logoInisial}
+                  onChange={(e) => setLogoInisial(e.target.value)}
+                  placeholder="Contoh: A"
+                  maxLength={2}
                 />
               </div>
             </CardContent>
