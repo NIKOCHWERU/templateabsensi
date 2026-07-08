@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Camera, Pencil, Check, Lock, MessageSquare } from "lucide-react";
+import { Loader2, Camera, Pencil, Check, Lock, MessageSquare, Upload } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -121,9 +121,9 @@ export default function ProfilePage() {
         throw new Error(err.message || "Gagal memperbarui profil");
       }
       return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({ title: "Profil Diperbarui", description: "Data berhasil disimpan." });
       setIsEditing(false);
     },
@@ -263,7 +263,7 @@ export default function ProfilePage() {
                                <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center px-2">
                                   <Progress value={uploadProgress.npwp} className="h-1.5 w-full mb-1" />
                                   <span className="text-[10px] font-bold text-primary">{uploadProgress.npwp}%</span>
-                                </div>
+                               </div>
                             ) : (previews.npwp || user?.npwpPhotoUrl) ? (
                               <img src={previews.npwp || (user?.npwpPhotoUrl ? resolveFileUrl(user.npwpPhotoUrl) : "")} className="w-full h-full object-cover" />
                             ) : <Camera className="w-5 h-5 text-slate-300" />}
@@ -282,7 +282,7 @@ export default function ProfilePage() {
                                <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center px-2">
                                   <Progress value={uploadProgress.bpjs} className="h-1.5 w-full mb-1" />
                                   <span className="text-[10px] font-bold text-primary">{uploadProgress.bpjs}%</span>
-                                </div>
+                               </div>
                             ) : (previews.bpjs || user?.bpjsPhotoUrl) ? (
                               <img src={previews.bpjs || (user?.bpjsPhotoUrl ? resolveFileUrl(user.bpjsPhotoUrl) : "")} className="w-full h-full object-cover" />
                             ) : <Camera className="w-5 h-5 text-slate-300" />}
@@ -294,28 +294,28 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <FormField control={form.control} name="religion" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Agama</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih Agama" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Islam">Islam</SelectItem>
-                            <SelectItem value="Kristen Protestan">Kristen Protestan</SelectItem>
-                            <SelectItem value="Katolik">Katolik</SelectItem>
-                            <SelectItem value="Hindu">Hindu</SelectItem>
-                            <SelectItem value="Buddha">Buddha</SelectItem>
-                            <SelectItem value="Khonghucu">Khonghucu</SelectItem>
-                            <SelectItem value="Lainnya">Lainnya</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                      <FormField control={form.control} name="religion" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Agama</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih Agama" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Islam">Islam</SelectItem>
+                              <SelectItem value="Kristen Protestan">Kristen Protestan</SelectItem>
+                              <SelectItem value="Katolik">Katolik</SelectItem>
+                              <SelectItem value="Hindu">Hindu</SelectItem>
+                              <SelectItem value="Buddha">Buddha</SelectItem>
+                              <SelectItem value="Khonghucu">Khonghucu</SelectItem>
+                              <SelectItem value="Lainnya">Lainnya</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     <Button type="submit" className="w-full h-11 font-bold shadow-md shadow-primary/20" disabled={mutation.isPending}>
                       {mutation.isPending
                         ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Menyimpan...</>
@@ -376,7 +376,7 @@ export default function ProfilePage() {
                   variant="outline"
                   size="sm"
                   className="mt-3 w-full border-amber-300 text-amber-700 hover:bg-amber-100 text-xs h-9"
-                  onClick={() => setLocation("/employee/complaint")}
+                  onClick={() => setLocation("/complaint")}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
                   Laporkan Kesalahan Data

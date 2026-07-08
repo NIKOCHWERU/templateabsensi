@@ -308,19 +308,19 @@ function SidebarMenuCollapsedDropdown({ item, location }: { item: NavCollapsible
                     {item.items.map((subItem) => {
                         const isSubActive = location === subItem.url;
                         return (
-                             <DropdownMenuItem
-                                 key={subItem.title}
-                                 onClick={() => setLocation(subItem.url)}
-                                 className={`flex items-center gap-2 cursor-pointer ${isSubActive ? "bg-orange-50 text-primary font-semibold" : "text-gray-700 hover:bg-gray-50"}`}
-                             >
-                                 {subItem.icon && <subItem.icon className="h-4 w-4 shrink-0" />}
-                                 <span>{subItem.title}</span>
-                                 {subItem.badge !== undefined && subItem.badge > 0 && (
-                                     <span className="ml-auto bg-primary text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                                         {subItem.badge}
-                                     </span>
-                                 )}
-                             </DropdownMenuItem>
+                            <DropdownMenuItem
+                                key={subItem.title}
+                                onClick={() => setLocation(subItem.url)}
+                                className={`flex items-center gap-2 cursor-pointer ${isSubActive ? "bg-orange-50 text-primary font-semibold" : "text-gray-700 hover:bg-gray-50"}`}
+                            >
+                                {subItem.icon && <subItem.icon className="h-4 w-4 shrink-0" />}
+                                <span>{subItem.title}</span>
+                                {subItem.badge !== undefined && subItem.badge > 0 && (
+                                    <span className="ml-auto bg-primary text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                        {subItem.badge}
+                                    </span>
+                                )}
+                            </DropdownMenuItem>
                         );
                     })}
                 </DropdownMenuContent>
@@ -722,73 +722,73 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                  )}
                              </div>
 
-                             <div className="h-6 w-px bg-gray-200" />
+                            <div className="h-6 w-px bg-gray-200" />
 
-                             {/* Profile Dropdown */}
-                             <div className="relative" ref={dropdownRef}>
-                                 <button
-                                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                                     className="flex items-center gap-2 sm:gap-3 hover:bg-gray-50 p-1.5 rounded-lg sm:rounded-xl transition-all duration-200 focus:outline-none cursor-pointer"
-                                 >
-                                     <div className="hidden text-right sm:block">
-                                         <p className="text-xs font-black text-gray-800 tracking-tight leading-none truncate max-w-[120px]">
-                                             {user?.fullName || user?.username || "Admin"}
-                                         </p>
-                                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
-                                             {user?.role === "superadmin" ? "Super Admin" : "Admin"}
-                                         </p>
-                                     </div>
-                                     <div className="w-8.5 h-8.5 rounded-full bg-gradient-to-br from-primary to-orange-600 text-white flex items-center justify-center font-bold text-sm shadow-xs hover:scale-105 transition-all">
-                                         {user?.fullName ? user.fullName.charAt(0).toUpperCase() : (user?.username ? user.username.charAt(0).toUpperCase() : "A")}
-                                     </div>
-                                     <ChevronDown className="w-4 h-4 text-gray-400 transition-transform duration-200" style={{ transform: dropdownOpen ? "rotate(180deg)" : "none" }} />
-                                 </button>
+                            {/* Profile Dropdown */}
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                                    className="flex items-center gap-2 sm:gap-3 hover:bg-gray-50 p-1.5 rounded-lg sm:rounded-xl transition-all duration-200 focus:outline-none cursor-pointer"
+                                >
+                                    <div className="hidden text-right sm:block">
+                                        <p className="text-xs font-black text-gray-800 tracking-tight leading-none truncate max-w-[120px]">
+                                            {user?.fullName || user?.username || "Admin"}
+                                        </p>
+                                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                            {user?.role === "superadmin" ? "Super Admin" : "Admin"}
+                                        </p>
+                                    </div>
+                                    <div className="w-8.5 h-8.5 rounded-full bg-gradient-to-br from-primary to-orange-600 text-white flex items-center justify-center font-bold text-sm shadow-xs hover:scale-105 transition-all">
+                                        {user?.fullName ? user.fullName.charAt(0).toUpperCase() : (user?.username ? user.username.charAt(0).toUpperCase() : "A")}
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-gray-400 transition-transform duration-200" style={{ transform: dropdownOpen ? "rotate(180deg)" : "none" }} />
+                                </button>
 
-                                 {dropdownOpen && (
-                                     <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white border border-gray-100 shadow-2xl py-2 z-50 transition-all origin-top-right animate-in fade-in slide-in-from-top-2 duration-150">
-                                         <div className="px-4 py-2 border-b border-gray-50 mb-1.5">
-                                             <p className="text-xs font-bold text-gray-800 truncate">
-                                                 {user?.fullName || "User Admin"}
-                                             </p>
-                                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
-                                                 {user?.role === "superadmin" ? "Super Admin" : "Admin"}
-                                             </p>
-                                         </div>
-                                         <button
-                                             onClick={() => {
-                                                 setDropdownOpen(false);
-                                                 setLocation("/admin/profile");
-                                             }}
-                                             className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors text-left"
-                                         >
-                                             <UserCog className="w-4 h-4 text-gray-400" />
-                                             <span>Profil Admin</span>
-                                         </button>
-                                         <div className="h-px bg-gray-50 my-1" />
-                                         <button
-                                             onClick={() => {
-                                                 setDropdownOpen(false);
-                                                 logoutMutation.mutate();
-                                             }}
-                                             className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50/50 transition-colors font-semibold text-left"
-                                         >
-                                             <LogOut className="w-4 h-4" />
-                                             <span>Keluar</span>
-                                         </button>
-                                     </div>
-                                 )}
-                             </div>
-                         </div>
-                     </header>
+                                {dropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white border border-gray-100 shadow-2xl py-2 z-50 transition-all origin-top-right animate-in fade-in slide-in-from-top-2 duration-150">
+                                        <div className="px-4 py-2 border-b border-gray-50 mb-1.5">
+                                            <p className="text-xs font-bold text-gray-800 truncate">
+                                                {user?.fullName || "User Admin"}
+                                            </p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                {user?.role === "superadmin" ? "Super Admin" : "Admin"}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setDropdownOpen(false);
+                                                setLocation("/admin/profile");
+                                            }}
+                                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors text-left"
+                                        >
+                                            <UserCog className="w-4 h-4 text-gray-400" />
+                                            <span>Profil Admin</span>
+                                        </button>
+                                        <div className="h-px bg-gray-50 my-1" />
+                                        <button
+                                            onClick={() => {
+                                                setDropdownOpen(false);
+                                                logoutMutation.mutate();
+                                            }}
+                                            className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50/50 transition-colors font-semibold text-left"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                            <span>Keluar</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </header>
 
-                     {/* Viewport content */}
-                     <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 bg-gray-50/40 p-4 md:p-6 lg:p-8">
-                         {children}
-                     </main>
-                 </SidebarInset>
-             </div>
-         </SidebarProvider>
-     );
+                    {/* Viewport content */}
+                    <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 bg-gray-50/40 p-4 md:p-6 lg:p-8">
+                        {children}
+                    </main>
+                </SidebarInset>
+            </div>
+        </SidebarProvider>
+    );
 }
 
 // Helper wrapper to switch between collapsible and dropdown on sidebar state

@@ -3,10 +3,25 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { exec } from "child_process";
+import webpush from "web-push";
 import { db, pool } from "./db.js";
-import { users, shifts, attendance, leaveRequests, complaints, complaintPhotos, resignations, mutations, warningLetters, systemConfigs, activityLogs, announcements } from "../shared/schema.js";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
-import { isAuthenticated, isAdmin, hashPassword } from "./auth.js";
+import { users, shifts, attendance, leaveRequests, complaints, complaintPhotos, resignations, mutations, warningLetters, systemConfigs, activityLogs, announcements, pushSubscriptions } from "../shared/schema.js";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { isAuthenticated, isAdmin, isSuperAdmin, hashPassword } from "./auth.js";
+
+// Configure web-push
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || "";
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
+
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(
+    'mailto:admin@absensikaryawan.com',
+    vapidPublicKey,
+    vapidPrivateKey
+  );
+} else {
+  console.warn("VAPID keys are missing. Web Push will not work.");
+}
 
 // Setup storage folder
 const uploadDir = path.resolve(process.cwd(), "uploads");
@@ -18,35 +33,78 @@ if (!fs.existsSync(cacheDir)) {
   fs.mkdirSync(cacheDir, { recursive: true });
 }
 
-import { uploadFile, isDriveConfigured } from "./services/googleDrive.js";
+import { uploadFile, isDriveConfigured, buildDriveFilename, DriveFolder, downloadFileStream } from "./services/googleDrive.js";
 
 async function processSingleUpload(
   file: Express.Multer.File | undefined,
   actionType: 'clockIn' | 'breakStart' | 'breakEnd' | 'clockOut' | 'lateReason' | 'complaint' | 'document' | 'profile',
-  username: string
-) {
-  if (!file) return null;
+  fullName: string,
+  docLabel?: string, // e.g. 'KTP', 'NPWP', 'BPJS', 'Profil'
+  base64Data?: string | null
+): Promise<string | null> {
+  let fileBuffer: Buffer;
+  let mimeType: string;
+  let filename: string;
+  let localPath: string;
+  let tempFilePath: string | null = null;
+
+  if (file) {
+    fileBuffer = fs.readFileSync(file.path);
+    mimeType = file.mimetype;
+    filename = file.filename;
+    localPath = `/api/images/${filename}`;
+    tempFilePath = file.path;
+  } else if (base64Data && base64Data.startsWith('data:image')) {
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      fileBuffer = Buffer.from(matches[2], 'base64');
+      const ext = mimeType.split('/')[1] || 'jpg';
+      filename = `attendance-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+      localPath = `/api/images/${filename}`;
+      // Save locally first
+      const fullLocalPath = path.join(uploadDir, filename);
+      fs.writeFileSync(fullLocalPath, fileBuffer);
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  // Determine target subfolder
+  const folderMap: Record<string, DriveFolder> = {
+    clockIn: 'Absensi',
+    breakStart: 'Absensi',
+    breakEnd: 'Absensi',
+    clockOut: 'Absensi',
+    lateReason: 'Absensi',
+    complaint: 'Pengaduan',
+    document: 'Dokumen',
+    profile: 'Dokumen',
+  };
+  const driveFolder: DriveFolder = folderMap[actionType] || 'Dokumen';
+
   if (isDriveConfigured) {
     try {
-      const fileBuffer = fs.readFileSync(file.path);
-      const cleanName = username.replace(/[^a-zA-Z0-9]/g, "");
-      const ext = path.extname(file.originalname) || ".jpg";
-      const gdriveFilename = `${actionType.toUpperCase()}_${cleanName}_${Date.now()}${ext}`;
-      
-      const result = await uploadFile(fileBuffer, gdriveFilename, file.mimetype);
-      try {
-        fs.unlinkSync(file.path);
-      } catch (err) {
-        // ignore
+      const driveFilename = buildDriveFilename(fullName, actionType, docLabel);
+      const result = await uploadFile(fileBuffer, driveFilename, mimeType, driveFolder);
+      // Clean up local temp file after successful Drive upload
+      if (tempFilePath) {
+        try { fs.unlinkSync(tempFilePath); } catch (_) { /* ignore */ }
+      } else {
+        try { fs.unlinkSync(path.join(uploadDir, filename)); } catch (_) { /* ignore */ }
       }
-      return `/api/gdrive-img/${result.fileId}`;
+      // Return only the Drive file ID (raw) — client will resolve it
+      return result.fileId;
     } catch (err: any) {
       console.error("GDrive upload failed, using local storage:", err.message);
-      return `/api/images/${file.filename}`;
+      return localPath;
     }
   }
-  return `/api/images/${file.filename}`;
+  return localPath;
 }
+
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -60,49 +118,75 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Helper to get Indonesian Current Date under Day Boundary (04:00 WIB)
 export function getAdminDate(): string {
-  const utc = new Date();
-  // UTC+7 for WIB
-  const wib = new Date(utc.getTime() + 7 * 60 * 60 * 1000);
-  const hour = wib.getUTCHours();
-  
-  if (hour < 4) {
-    wib.setUTCDate(wib.getUTCDate() - 1);
+  const now = new Date();
+  const jakartaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  if (jakartaTime.getHours() < 1) {
+    jakartaTime.setDate(jakartaTime.getDate() - 1);
   }
-  
-  const yyyy = wib.getUTCFullYear();
-  const mm = String(wib.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(wib.getUTCDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  const y = jakartaTime.getFullYear();
+  const m = String(jakartaTime.getMonth() + 1).padStart(2, '0');
+  const d = String(jakartaTime.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export function registerRoutes(app: Express) {
   
   // Dynamic Manifest serving for PWA
-  app.get("/manifest.json", (req: Request, res: Response) => {
+  app.get("/manifest.json", async (req: Request, res: Response) => {
     res.setHeader("Content-Type", "application/json");
-    res.json({
-      name: process.env.VITE_NAMA_PT || "PT ABC",
-      short_name: process.env.VITE_SINGKATAN_PT || "PT ABC",
-      description: process.env.VITE_DESKRIPSI_PWA || "Sistem Absensi Tenaga Kerja PT ABC",
-      start_url: "/",
-      display: "standalone",
-      background_color: "#ffffff",
-      theme_color: "#f97316",
-      icons: [
-        {
-          src: "/icon-192.png",
-          sizes: "192x192",
-          type: "image/png"
-        },
-        {
-          src: "/icon-512.png",
-          sizes: "512x512",
-          type: "image/png"
-        }
-      ]
-    });
+    try {
+      const dbConfigs = await db.select().from(systemConfigs);
+      const configMap = new Map(dbConfigs.map(c => [c.key, c.value]));
+      
+      const name = configMap.get("namaPt") || process.env.VITE_NAMA_PT || "PT MEKANO INDUSTRIAL PRESISI";
+      const shortName = configMap.get("singkatanPt") || process.env.VITE_SINGKATAN_PT || "PT MIP";
+      const description = configMap.get("deskripsiPwa") || "Sistem Absensi Karyawan Digital";
+      const logo = configMap.get("logoUrl") || "/icon-192.png";
+
+      res.json({
+        name,
+        short_name: shortName,
+        description,
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#ffffff",
+        icons: [
+          {
+            src: logo,
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: logo,
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
+      });
+    } catch (e) {
+      res.json({
+        name: process.env.VITE_NAMA_PT || "PT MEKANO INDUSTRIAL PRESISI",
+        short_name: process.env.VITE_SINGKATAN_PT || "PT MIP",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#ffffff",
+        icons: [
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
+      });
+    }
   });
   
   // Image retrieval and proxy (with CORS headers)
@@ -131,6 +215,32 @@ export function registerRoutes(app: Express) {
     return res.status(404).json({ message: "Gambar tidak ditemukan" });
   });
 
+  // Serves images without extension suffix in the URL (Bypasses Nginx static caching/hijacking rules)
+  app.get("/api/images-static/:id", (req: Request, res: Response) => {
+    const safeId = path.basename(req.params.id);
+    try {
+      const files = fs.readdirSync(uploadDir);
+      const matchingFile = files.find(f => f.startsWith(safeId));
+
+      if (matchingFile) {
+        const filePath = path.join(uploadDir, matchingFile);
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+        
+        const ext = path.extname(matchingFile).toLowerCase();
+        if (ext === ".png") res.setHeader("Content-Type", "image/png");
+        else if (ext === ".gif") res.setHeader("Content-Type", "image/gif");
+        else if (ext === ".webp") res.setHeader("Content-Type", "image/webp");
+        else res.setHeader("Content-Type", "image/jpeg");
+
+        return res.sendFile(filePath);
+      }
+    } catch (err) {
+      // ignore
+    }
+    return res.status(404).json({ message: "Gambar tidak ditemukan" });
+  });
+
   // Client Upload endpoint for direct AJAX/fetch
   app.post("/api/upload-direct", upload.single("photo"), async (req: Request, res: Response) => {
     if (!req.file) {
@@ -140,8 +250,18 @@ export function registerRoutes(app: Express) {
     res.json({ url, filename: req.file.filename });
   });
 
+  // Dedicated local-only upload endpoint for Company Logo (bypasses Google Drive)
+  app.post("/api/admin/upload-logo", isAuthenticated, isSuperAdmin, upload.single("logo"), (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "Tidak ada file logo yang diunggah" });
+    }
+    const ext = path.extname(req.file.filename);
+    const idWithoutExt = path.basename(req.file.filename, ext);
+    res.json({ url: `/api/images-static/${idWithoutExt}`, filename: req.file.filename });
+  });
+
   // Google Drive proxy thumbnail endpoint
-  app.get("/api/gdrive-img/:id", (req: Request, res: Response) => {
+  app.get("/api/gdrive-img/:id", async (req: Request, res: Response) => {
     const fileId = req.params.id;
     if (!fileId || fileId.includes("/") || fileId.includes("\\")) {
       return res.status(400).json({ message: "ID File tidak valid" });
@@ -158,26 +278,77 @@ export function registerRoutes(app: Express) {
       return res.sendFile(cachePath);
     }
 
-    // 2. Fetch from Google Drive thumbnail public API
-    const driveUrl = `https://drive.google.com/thumbnail?id=${safeFileId}&sz=w800`;
-    import("https").then((https) => {
-      https.get(driveUrl, (driveRes) => {
-        if (driveRes.statusCode === 200) {
-          const fileStream = fs.createWriteStream(cachePath);
-          driveRes.pipe(fileStream);
-          fileStream.on("finish", () => {
-            res.setHeader("Access-Control-Allow-Origin", "*");
-            res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-            res.setHeader("Content-Type", "image/jpeg");
-            return res.sendFile(cachePath);
+    // 2. Fetch from Google Drive API using authenticated client if configured
+    if (isDriveConfigured) {
+      try {
+        const stream = await downloadFileStream(safeFileId);
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+        res.setHeader("Content-Type", "image/jpeg"); // Assume jpeg for simplicity
+        
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+        stream.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          fs.writeFile(cachePath, buffer, (err) => {
+            if (err) console.error("Cache write error:", err);
           });
-        } else {
-          return res.status(404).json({ message: "Gambar tidak ditemukan di Drive" });
+          res.send(buffer);
+        });
+        stream.on('error', (err: any) => {
+          console.error("GDrive stream error:", err);
+          res.status(500).json({ message: "Gagal memproses gambar Drive" });
+        });
+      } catch (err: any) {
+        console.error("GDrive download error:", err.message);
+        res.status(404).json({ message: "Gambar tidak ditemukan di Drive" });
+      }
+      return;
+    }
+
+    // 3. Fallback to public thumbnail API if not configured
+    const driveUrl = `https://drive.google.com/thumbnail?id=${safeFileId}&sz=w800`;
+
+    import("https").then((https) => {
+      const handleRequest = (url: string, redirectCount = 0) => {
+        if (redirectCount > 5) {
+          return res.status(500).json({ message: "Terlalu banyak redirect" });
         }
-      }).on("error", (err) => {
-        console.error("GDrive proxy error:", err);
-        return res.status(500).json({ message: "Gagal memproses gambar Drive" });
-      });
+
+        const mod = https;
+        mod.get(url, (proxyRes) => {
+          // Follow redirects
+          if ((proxyRes.statusCode === 301 || proxyRes.statusCode === 302) && proxyRes.headers.location) {
+            return handleRequest(proxyRes.headers.location, redirectCount + 1);
+          }
+
+          if (proxyRes.statusCode !== 200) {
+             return res.status(proxyRes.statusCode || 404).json({ message: "Gambar tidak ditemukan di Drive" });
+          }
+
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+          res.setHeader("Content-Type", proxyRes.headers["content-type"] || "image/jpeg");
+
+          const chunks: any[] = [];
+          proxyRes.on("data", (chunk) => {
+            chunks.push(chunk);
+          });
+
+          proxyRes.on("end", () => {
+            const buffer = Buffer.concat(chunks);
+            fs.writeFile(cachePath, buffer, (err) => {
+              if (err) console.error("Cache write error:", err);
+            });
+            res.send(buffer);
+          });
+        }).on("error", (err) => {
+          console.error("GDrive proxy error:", err);
+          return res.status(500).json({ message: "Gagal memproses gambar Drive" });
+        });
+      };
+
+      handleRequest(driveUrl);
     });
   });
 
@@ -240,8 +411,69 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Dynamic PWA Manifest endpoint
+  app.get("/manifest.json", async (req: Request, res: Response) => {
+    try {
+      const dbConfigs = await db.select().from(systemConfigs);
+      const configMap: Record<string, string> = {};
+      dbConfigs.forEach(cfg => {
+        configMap[cfg.key] = cfg.value;
+      });
+
+      const namaPt = configMap["namaPt"] ?? process.env.VITE_NAMA_PT ?? "PT ABCD";
+      const singkatanPt = configMap["singkatanPt"] ?? process.env.VITE_SINGKATAN_PT ?? "PT ABC";
+      const deskripsiPwa = configMap["deskripsiPwa"] ?? process.env.VITE_DESKRIPSI_PWA ?? "Aplikasi Absensi Tenaga Kerja";
+      let logoUrl = configMap["logoUrl"] ?? process.env.VITE_LOGO_FILE ?? "/icon-192.png";
+      const themePrimary = configMap["themePrimary"] ?? process.env.VITE_THEME_PRIMARY_HSL ?? "24 95% 53%";
+
+      // If it's a google drive file, proxy it through our proxy-image route for the PWA manifest
+      if (logoUrl.includes("drive.google.com") || /^[a-zA-Z0-9_-]{20,}$/.test(logoUrl)) {
+        logoUrl = `/api/proxy-image?url=${encodeURIComponent(logoUrl)}`;
+      }
+
+      res.json({
+        name: namaPt,
+        short_name: singkatanPt,
+        description: deskripsiPwa,
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#ffffff",
+        icons: [
+          {
+            src: logoUrl,
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: logoUrl,
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
+      });
+    } catch (err) {
+      console.error("Failed to load manifest:", err);
+      res.json({
+        name: "PT ABC",
+        short_name: "ABC",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#ffffff",
+        icons: [
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png"
+          }
+        ]
+      });
+    }
+  });
+
   // Admin endpoint to save configuration
-  app.post("/api/admin/config", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/config", isAuthenticated, isSuperAdmin, async (req: Request, res: Response) => {
     try {
       const {
         namaPt, singkatanPt, deskripsiPwa, logoUrl, logoInisial, rekapPrefix,
@@ -360,10 +592,10 @@ export function registerRoutes(app: Express) {
           registrationStatus: "pending", // Directly to pending because they complete it upfront
         };
 
-        insertData.ktpPhotoUrl = files?.ktpPhoto?.[0] ? await processSingleUpload(files.ktpPhoto[0], "document", username) : null;
-        insertData.bpjsPhotoUrl = files?.bpjsPhoto?.[0] ? await processSingleUpload(files.bpjsPhoto[0], "document", username) : null;
-        insertData.npwpPhotoUrl = files?.npwpPhoto?.[0] ? await processSingleUpload(files.npwpPhoto[0], "document", username) : null;
-        insertData.photoUrl = files?.photo?.[0] ? await processSingleUpload(files.photo[0], "profile", username) : null;
+        insertData.ktpPhotoUrl = files?.ktpPhoto?.[0] ? await processSingleUpload(files.ktpPhoto[0], "document", fullName, "KTP") : null;
+        insertData.bpjsPhotoUrl = files?.bpjsPhoto?.[0] ? await processSingleUpload(files.bpjsPhoto[0], "document", fullName, "BPJS") : null;
+        insertData.npwpPhotoUrl = files?.npwpPhoto?.[0] ? await processSingleUpload(files.npwpPhoto[0], "document", fullName, "NPWP") : null;
+        insertData.photoUrl = files?.photo?.[0] ? await processSingleUpload(files.photo[0], "profile", fullName, "Profil") : null;
 
         await (db.insert(users) as any).values(insertData);
 
@@ -374,7 +606,97 @@ export function registerRoutes(app: Express) {
     }
   );
 
-  // Update Profile & Log Activity
+  // 2. Submit Registration Data for already-logged-in employees (incomplete status)
+  app.post(
+    "/api/register-data",
+    isAuthenticated,
+    upload.fields([
+      { name: "ktpPhoto", maxCount: 1 },
+      { name: "profilePhoto", maxCount: 1 },
+      { name: "bpjsPhoto", maxCount: 1 },
+      { name: "npwpPhoto", maxCount: 1 },
+    ]),
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as any).id;
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const username = (req.user as any).username || String(userId);
+
+        const {
+          fullName,
+          nik,
+          email,
+          phoneNumber,
+          birthPlace,
+          birthDate,
+          gender,
+          religion,
+          address,
+          npwp,
+          bpjs,
+          branch,
+          position,
+          employmentStatus,
+          joinDate,
+        } = req.body;
+
+        // Normalise birthDate to yyyy-MM-dd (strip ISO timestamp if present)
+        let normBirthDate: string | null = null;
+        if (birthDate) {
+          const raw = String(birthDate);
+          if (raw.includes("T")) {
+            normBirthDate = raw.split("T")[0];
+          } else {
+            normBirthDate = raw;
+          }
+        }
+
+        const updates: any = {
+          registrationStatus: "pending",
+        };
+
+        if (fullName) updates.fullName = fullName;
+        if (nik) updates.nik = nik;
+        if (email) updates.email = email;
+        if (phoneNumber) updates.phoneNumber = phoneNumber;
+        if (birthPlace) updates.birthPlace = birthPlace;
+        if (normBirthDate) updates.birthDate = normBirthDate;
+        if (gender) updates.gender = gender;
+        if (religion) updates.religion = religion;
+        if (address) updates.address = address;
+        if (npwp) updates.npwp = npwp;
+        if (bpjs) updates.bpjs = bpjs;
+        if (branch) updates.branch = branch;
+        if (position) updates.position = position;
+        if (employmentStatus) updates.employmentStatus = employmentStatus;
+        if (joinDate) updates.joinDate = joinDate;
+
+        const uploadName = fullName || (req.user as any).fullName || (req.user as any).username;
+
+        // Upload documents
+        if (files?.ktpPhoto?.[0]) {
+          updates.ktpPhotoUrl = await processSingleUpload(files.ktpPhoto[0], "document", uploadName, "KTP");
+        }
+        if (files?.profilePhoto?.[0]) {
+          updates.photoUrl = await processSingleUpload(files.profilePhoto[0], "profile", uploadName, "Profil");
+        }
+        if (files?.bpjsPhoto?.[0]) {
+          updates.bpjsPhotoUrl = await processSingleUpload(files.bpjsPhoto[0], "document", uploadName, "BPJS");
+        }
+        if (files?.npwpPhoto?.[0]) {
+          updates.npwpPhotoUrl = await processSingleUpload(files.npwpPhoto[0], "document", uploadName, "NPWP");
+        }
+
+        await db.update(users).set(updates).where(eq(users.id, userId));
+
+        res.json({ message: "Data pendaftaran berhasil dikirim, menunggu verifikasi admin." });
+      } catch (err: any) {
+        console.error("register-data error:", err);
+        res.status(500).json({ message: err.message || "Terjadi kesalahan saat menyimpan data." });
+      }
+    }
+  );
+
   app.patch("/api/profile", isAuthenticated, upload.none(), async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
@@ -440,6 +762,55 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Update Admin Profile (Full Name, Username, Email, Phone Number, and optional Password)
+  app.patch("/api/admin/profile", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { fullName, username, email, phoneNumber, password } = req.body;
+
+      if (!fullName || !username) {
+        return res.status(400).json({ message: "Nama Lengkap dan Username wajib diisi" });
+      }
+
+      // Check if username is already taken by another user
+      const existingUser = await db.select().from(users).where(eq(users.username, username)).limit(1);
+      if (existingUser.length > 0 && existingUser[0].id !== userId) {
+        return res.status(400).json({ message: "Username sudah digunakan oleh akun lain" });
+      }
+
+      const updates: any = {
+        fullName,
+        username,
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+      };
+
+      if (password) {
+        updates.password = await hashPassword(password);
+      }
+
+      await db.update(users).set(updates).where(eq(users.id, userId));
+
+      // Log activity
+      await db.insert(activityLogs).values({
+        userId,
+        action: "MENGUBAH_PROFIL_ADMIN",
+        details: `Mengubah profil admin: Nama=${fullName}, Username=${username}`,
+      });
+
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      // Update session user object if possible (passport.js login)
+      req.login(updatedUser, (err) => {
+        if (err) console.error("Session update error:", err);
+      });
+
+      res.json(updatedUser);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // 3. Attendance Clock-in (Absen Masuk)
   app.post(
     "/api/attendance/clock-in",
@@ -499,7 +870,7 @@ export function registerRoutes(app: Express) {
         const existingSessions = await db
           .select()
           .from(attendance)
-          .where(and(eq(attendance.userId, userId), eq(attendance.date, adminDate)));
+          .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`));
 
         const nextSessionNum = existingSessions.length + 1;
         if (nextSessionNum > 5) {
@@ -524,9 +895,9 @@ export function registerRoutes(app: Express) {
           }
         }
 
-        const username = (req.user as any).username;
-        const checkInPhoto = files?.photo?.[0] ? await processSingleUpload(files.photo[0], "clockIn", username) : null;
-        const lateReasonPhoto = files?.lateReasonPhoto?.[0] ? await processSingleUpload(files.lateReasonPhoto[0], "lateReason", username) : null;
+        const fullName = (req.user as any).fullName || (req.user as any).username;
+        const checkInPhoto = await processSingleUpload(files?.photo?.[0], "clockIn", fullName, undefined, req.body.checkInPhoto);
+        const lateReasonPhoto = await processSingleUpload(files?.lateReasonPhoto?.[0], "lateReason", fullName, undefined, req.body.lateReasonPhoto);
 
         const newAttendance = {
           userId,
@@ -555,7 +926,7 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/break-start", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address, location } = req.body;
+    const { address, location, checkInPhoto } = req.body;
     const activeAddress = location || address;
 
     try {
@@ -563,7 +934,7 @@ export function registerRoutes(app: Express) {
       const todaySessions = await db
         .select()
         .from(attendance)
-        .where(and(eq(attendance.userId, userId), eq(attendance.date, adminDate)))
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
         .orderBy(desc(attendance.sessionNumber));
 
       if (todaySessions.length === 0) {
@@ -575,8 +946,8 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ message: "Istirahat sudah dimulai pada sesi ini" });
       }
 
-      const username = (req.user as any).username;
-      const breakStartPhoto = req.file ? await processSingleUpload(req.file, "breakStart", username) : null;
+      const fullName = (req.user as any).fullName || (req.user as any).username;
+      const breakStartPhoto = await processSingleUpload(req.file, "breakStart", fullName, undefined, checkInPhoto);
       await db
         .update(attendance)
         .set({
@@ -596,14 +967,14 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/break-end", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address, location } = req.body;
+    const { address, location, checkInPhoto } = req.body;
     const activeAddress = location || address;
 
     try {
       const todaySessions = await db
         .select()
         .from(attendance)
-        .where(and(eq(attendance.userId, userId), eq(attendance.date, adminDate)))
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
         .orderBy(desc(attendance.sessionNumber));
 
       if (todaySessions.length === 0) {
@@ -618,8 +989,8 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ message: "Istirahat sudah diakhiri pada sesi ini" });
       }
 
-      const username = (req.user as any).username;
-      const breakEndPhoto = req.file ? await processSingleUpload(req.file, "breakEnd", username) : null;
+      const fullName = (req.user as any).fullName || (req.user as any).username;
+      const breakEndPhoto = await processSingleUpload(req.file, "breakEnd", fullName, undefined, checkInPhoto);
       await db
         .update(attendance)
         .set({
@@ -639,14 +1010,14 @@ export function registerRoutes(app: Express) {
   app.post("/api/attendance/clock-out", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const adminDate = getAdminDate();
-    const { address, location } = req.body;
+    const { address, location, checkInPhoto } = req.body;
     const activeAddress = location || address;
 
     try {
       const todaySessions = await db
         .select()
         .from(attendance)
-        .where(and(eq(attendance.userId, userId), eq(attendance.date, adminDate)))
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
         .orderBy(desc(attendance.sessionNumber));
 
       if (todaySessions.length === 0) {
@@ -658,8 +1029,8 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ message: "Sesi absensi aktif sudah melakukan checkout" });
       }
 
-      const username = (req.user as any).username;
-      const checkOutPhoto = req.file ? await processSingleUpload(req.file, "clockOut", username) : null;
+      const fullName = (req.user as any).fullName || (req.user as any).username;
+      const checkOutPhoto = await processSingleUpload(req.file, "clockOut", fullName, undefined, checkInPhoto);
       await db
         .update(attendance)
         .set({
@@ -675,6 +1046,126 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // 7. Permit (Pengajuan Izin)
+  app.post("/api/attendance/permit", isAuthenticated, upload.single("photo"), async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { notes, type, checkInPhoto, location } = req.body;
+    const adminDate = getAdminDate();
+    const labelType = type === 'sick' ? 'Sakit' : type === 'off' ? 'Libur' : 'Izin';
+
+    try {
+      // Get all sessions today to find the active one
+      const todaySessions = await db
+        .select()
+        .from(attendance)
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
+        .orderBy(attendance.sessionNumber);
+
+      const activeSession = todaySessions.find(s => !s.checkOut);
+
+      const fullName = (req.user as any).fullName || (req.user as any).username;
+      const photoFileId = await processSingleUpload(req.file, "clockIn", fullName, undefined, checkInPhoto);
+      const now = new Date();
+
+      if (activeSession) {
+        const wasOnBreak = !!(activeSession.breakStart && !activeSession.breakEnd);
+        const wasWorking = !!activeSession.checkIn;
+        const stateLabel = wasOnBreak ? '(saat istirahat)' : wasWorking ? '(saat bekerja)' : '';
+        const contextNote = notes
+          ? `[${labelType} ${stateLabel}] ${notes}`
+          : `${labelType} ${stateLabel} - sesi dihentikan, dapat dilanjutkan kembali`;
+
+        const updatePayload: any = {
+          status: type,
+          notes: contextNote,
+          checkOut: now,
+          checkOutPhoto: photoFileId || activeSession.checkOutPhoto,
+          permitExitAt: now,
+        };
+
+        if (wasOnBreak) {
+          updatePayload.breakEnd = now;
+        }
+
+        await db.update(attendance).set(updatePayload).where(eq(attendance.id, activeSession.id));
+        
+        const [updated] = await db.select().from(attendance).where(eq(attendance.id, activeSession.id)).limit(1);
+        return res.json(updated);
+      }
+
+      // No active session — permit submitted before starting work
+      const contextNote = notes
+        ? `[${labelType} sebelum kerja] ${notes}`
+        : `${labelType} - tidak masuk kerja`;
+
+      const newAttendance = {
+        userId,
+        date: adminDate,
+        status: type,
+        notes: contextNote,
+        checkInPhoto: photoFileId,
+        checkInLocation: location || null,
+        checkIn: now,
+        checkOut: now,
+        sessionNumber: todaySessions.length + 1,
+      };
+
+      await db.insert(attendance).values(newAttendance);
+      res.json(newAttendance);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // 8. Resume (Lanjut Kerja)
+  app.post("/api/attendance/resume", isAuthenticated, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const adminDate = getAdminDate();
+
+    try {
+      const todaySessions = await db
+        .select()
+        .from(attendance)
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
+        .orderBy(attendance.sessionNumber);
+
+      if (todaySessions.length === 0) {
+        return res.status(400).json({ message: "Tidak ada riwayat kehadiran hari ini" });
+      }
+
+      const activeSession = todaySessions.find(s => !s.checkOut);
+      if (activeSession) {
+        return res.status(400).json({ message: "Masih ada sesi aktif. Silakan pulang dulu sebelum lanjut kerja." });
+      }
+
+      const nextSessionNumber = todaySessions.length + 1;
+      if (nextSessionNumber > 5) {
+        return res.status(400).json({ message: "Batas harian 5 sesi tercapai." });
+      }
+
+      const now = new Date();
+      const lastSession = todaySessions[todaySessions.length - 1];
+      const shiftId = lastSession.shiftId;
+      const shiftName = lastSession.shift || 'Karyawan';
+
+      const newAttendance = {
+        userId,
+        date: adminDate,
+        checkIn: now,
+        status: "present" as any,
+        shiftId: shiftId ? Number(shiftId) : null,
+        shift: shiftName,
+        sessionNumber: nextSessionNumber,
+        notes: `Sesi ke-${nextSessionNumber}`
+      };
+
+      await db.insert(attendance).values(newAttendance);
+      res.json(newAttendance);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // 7. Get Today's Active Attendance Log for Employee
   app.get("/api/attendance/today", isAuthenticated, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
@@ -684,7 +1175,7 @@ export function registerRoutes(app: Express) {
       const todaySessions = await db
         .select()
         .from(attendance)
-        .where(and(eq(attendance.userId, userId), eq(attendance.date, adminDate)))
+        .where(and(eq(attendance.userId, userId), sql`DATE(${attendance.date}) = ${adminDate}`))
         .orderBy(attendance.sessionNumber);
 
       res.json(todaySessions);
@@ -844,9 +1335,9 @@ export function registerRoutes(app: Express) {
 
       // Insert photos
       if (files && files.length > 0) {
-        const username = (req.user as any).username;
+        const fullName = (req.user as any).fullName || (req.user as any).username;
         for (const file of files) {
-          const photoUrl = await processSingleUpload(file, "complaint", username);
+          const photoUrl = await processSingleUpload(file, "complaint", fullName);
           await db.insert(complaintPhotos).values({
             complaintId,
             photoUrl: photoUrl || `/api/images/${file.filename}`,
@@ -979,6 +1470,44 @@ export function registerRoutes(app: Express) {
   });
 
   // ================= ADMIN & SUPERADMIN =================
+
+  // Dashboard Stats: total employees + present today
+  app.get("/api/admin/stats", isAdmin, async (req: Request, res: Response) => {
+    try {
+      const adminDate = getAdminDate();
+      // Count all approved employees
+      const allEmployees = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.role, "employee"), eq(users.registrationStatus, "approved")));
+      const totalEmployees = allEmployees.length;
+
+      // Count unique employees who clocked in today
+      const todayAttendance = await db
+        .select()
+        .from(attendance)
+        .where(sql`DATE(${attendance.date}) = ${adminDate}`);
+      const presentUserIds = new Set(todayAttendance.map(a => a.userId));
+      const presentToday = presentUserIds.size;
+
+      res.json({ totalEmployees, presentToday });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Dashboard Stats: pending complaints count
+  app.get("/api/admin/complaints/stats", isAdmin, async (req: Request, res: Response) => {
+    try {
+      const list = await db
+        .select()
+        .from(complaints)
+        .where(eq(complaints.status, "pending"));
+      res.json({ pendingCount: list.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
 
   // 1. Unverified employees list
   app.get("/api/admin/unverified-employees", isAdmin, async (req: Request, res: Response) => {
@@ -1331,11 +1860,10 @@ export function registerRoutes(app: Express) {
         }
 
         for (const dateStr of datesToMark) {
-          // Check if attendance log already exists for user and date
           const [exists] = await db
             .select()
             .from(attendance)
-            .where(and(eq(attendance.userId, leaveReq.userId), eq(attendance.date, dateStr)))
+            .where(and(eq(attendance.userId, leaveReq.userId), sql`DATE(${attendance.date}) = ${dateStr}`))
             .limit(1);
 
           if (!exists) {
@@ -1350,7 +1878,7 @@ export function registerRoutes(app: Express) {
             await db
               .update(attendance)
               .set({ status: "cuti", notes: `Cuti Disetujui: ${leaveReq.reason}` })
-              .where(and(eq(attendance.userId, leaveReq.userId), eq(attendance.date, dateStr)));
+              .where(and(eq(attendance.userId, leaveReq.userId), sql`DATE(${attendance.date}) = ${dateStr}`));
           }
         }
       }
@@ -1383,10 +1911,10 @@ export function registerRoutes(app: Express) {
       
       const filters = [];
       if (startDate) {
-        filters.push(gte(attendance.date, String(startDate)));
+        filters.push(sql`DATE(${attendance.date}) >= ${startDate}`);
       }
       if (endDate) {
-        filters.push(lte(attendance.date, String(endDate)));
+        filters.push(sql`DATE(${attendance.date}) <= ${endDate}`);
       }
 
       if (filters.length > 0) {
@@ -1397,6 +1925,187 @@ export function registerRoutes(app: Express) {
       res.json(list);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // General Attendance listing endpoint (used widely in frontend)
+  app.get("/api/attendance", isAuthenticated, async (req: Request, res: Response) => {
+    const { userId: qUserId, month: monthStr, startDate, endDate } = req.query;
+    
+    // Check role
+    const isUserAdmin = (req.user as any).role === "admin" || (req.user as any).role === "superadmin" || (req.user as any).isAdmin === true;
+    
+    const parsedUserId = qUserId ? Number(Array.isArray(qUserId) ? qUserId[0] : qUserId) : undefined;
+    const targetUserId = isUserAdmin ? parsedUserId : (req.user as any).id;
+
+    try {
+      let query = db.select().from(attendance);
+      const filters = [];
+
+      if (targetUserId) {
+        filters.push(eq(attendance.userId, targetUserId));
+      }
+
+      if (startDate) {
+        filters.push(sql`DATE(${attendance.date}) >= ${startDate}`);
+      }
+      if (endDate) {
+        filters.push(sql`DATE(${attendance.date}) <= ${endDate}`);
+      } else if (monthStr) {
+        const prefix = String(monthStr);
+        filters.push(sql`DATE_FORMAT(${attendance.date}, '%Y-%m') = ${prefix}`);
+      }
+
+      if (filters.length > 0) {
+        query = query.where(and(...filters)) as any;
+      }
+
+      const list = await query.orderBy(desc(attendance.date), desc(attendance.sessionNumber));
+      res.json(list);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST: Add manual attendance record (admin override)
+  app.post("/api/admin/attendance/manual", isAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, date, status, notes, shift, checkIn, checkOut, breakStart, breakEnd } = req.body;
+      if (!userId || !date || !status) {
+        return res.status(400).json({ message: "Data tidak lengkap" });
+      }
+
+      const parsedUserId = Number(userId);
+
+      // Check if record exists for this user and date
+      const [existing] = await db
+        .select()
+        .from(attendance)
+        .where(and(eq(attendance.userId, parsedUserId), sql`DATE(${attendance.date}) = ${date}`))
+        .limit(1);
+
+      const toDate = (dateStr: string, timeStr: string | undefined): Date | null => {
+        if (!timeStr || timeStr.trim() === '') return null;
+        return new Date(`${dateStr}T${timeStr}:00+07:00`);
+      };
+
+      let record;
+      if (existing) {
+        const updatePayload: any = {
+          status,
+          notes: notes || null,
+          shift: shift || existing.shift,
+        };
+        if (checkIn) updatePayload.checkIn = new Date(`${date}T${checkIn}:00+07:00`);
+        if (checkOut) updatePayload.checkOut = toDate(date, checkOut);
+        if (breakStart) updatePayload.breakStart = toDate(date, breakStart);
+        if (breakEnd) updatePayload.breakEnd = toDate(date, breakEnd);
+
+        await db.update(attendance).set(updatePayload).where(eq(attendance.id, existing.id));
+        [record] = await db.select().from(attendance).where(eq(attendance.id, existing.id)).limit(1);
+      } else {
+        const [user] = await db.select().from(users).where(eq(users.id, parsedUserId)).limit(1);
+        const insertPayload: any = {
+          userId: parsedUserId,
+          date: date,
+          status,
+          notes: notes || "",
+          shift: shift || user?.shift || '-',
+          sessionNumber: 1,
+        };
+        if (checkIn) insertPayload.checkIn = new Date(`${date}T${checkIn}:00+07:00`);
+        if (checkOut) insertPayload.checkOut = toDate(date, checkOut);
+        if (breakStart) insertPayload.breakStart = toDate(date, breakStart);
+        if (breakEnd) insertPayload.breakEnd = toDate(date, breakEnd);
+
+        const [result] = await db.insert(attendance).values(insertPayload);
+        const insertId = result.insertId;
+        [record] = await db.select().from(attendance).where(eq(attendance.id, insertId)).limit(1);
+      }
+
+      res.json(record);
+    } catch (err: any) {
+      console.error("Manual Attendance Error:", err);
+      res.status(500).json({ message: "Gagal memproses data absensi" });
+    }
+  });
+
+  // PUT: Edit existing attendance record (admin override)
+  app.put('/api/admin/attendance/:id', isAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { status, notes, checkIn, checkOut, breakStart, breakEnd, date } = req.body;
+
+    const toDate = (dateStr: string | undefined, timeStr: string | undefined): Date | null => {
+      if (!timeStr || timeStr.trim() === '') return null;
+      return new Date(`${dateStr}T${timeStr}:00+07:00`);
+    };
+
+    try {
+      const updatePayload: any = {};
+      if (status) updatePayload.status = status;
+      updatePayload.notes = notes || null;
+      if (checkIn) updatePayload.checkIn = new Date(`${date}T${checkIn}:00+07:00`);
+      if (checkOut !== undefined) updatePayload.checkOut = toDate(date, checkOut);
+      if (breakStart !== undefined) updatePayload.breakStart = toDate(date, breakStart);
+      if (breakEnd !== undefined) updatePayload.breakEnd = toDate(date, breakEnd);
+
+      await db.update(attendance).set(updatePayload).where(eq(attendance.id, id));
+      
+      const [updated] = await db.select().from(attendance).where(eq(attendance.id, id)).limit(1);
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // DELETE: Remove an attendance record
+  app.delete('/api/admin/attendance/:id', isAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    try {
+      await db.delete(attendance).where(eq(attendance.id, id));
+      res.sendStatus(204);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // --- Push Notifications ---
+  app.get("/api/push/public-key", (req: Request, res: Response) => {
+    if (!vapidPublicKey) {
+      return res.status(500).json({ message: "VAPID key is not configured" });
+    }
+    res.json({ publicKey: vapidPublicKey });
+  });
+
+  app.post("/api/push/subscribe", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint || !subscription.keys) {
+        return res.status(400).json({ message: "Invalid subscription data" });
+      }
+
+      // Check if subscription already exists for this user and endpoint
+      const [existing] = await db
+        .select()
+        .from(pushSubscriptions)
+        .where(and(eq(pushSubscriptions.userId, req.user!.id), eq(pushSubscriptions.endpoint, subscription.endpoint)))
+        .limit(1);
+
+      if (!existing) {
+        await db.insert(pushSubscriptions).values({
+          userId: req.user!.id,
+          endpoint: subscription.endpoint,
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        });
+      }
+
+      res.status(201).json({ message: "Subscription saved." });
+    } catch (e) {
+      console.error("Push Subscribe Error:", e);
+      res.status(500).json({ message: "Server error" });
     }
   });
 
@@ -1432,12 +2141,20 @@ export function registerRoutes(app: Express) {
   // PATCH alias for client compatibility
   app.patch("/api/admin/complaints/:id/status", isAdmin, async (req: Request, res: Response) => {
     const targetId = Number(req.params.id);
-    const { status } = req.body; // "pending", "reviewed", "resolved"
+    const { status, adminFeedback, feedbackDocumentUrl } = req.body; 
     try {
       if (!["pending", "reviewed", "resolved"].includes(status)) {
         return res.status(400).json({ message: "Status tidak valid" });
       }
-      await db.update(complaints).set({ status }).where(eq(complaints.id, targetId));
+      
+      const updateData: any = { status };
+      if (status === "resolved") {
+        updateData.resolvedAt = new Date();
+        if (adminFeedback !== undefined) updateData.adminFeedback = adminFeedback;
+        if (feedbackDocumentUrl !== undefined) updateData.feedbackDocumentUrl = feedbackDocumentUrl;
+      }
+
+      await db.update(complaints).set(updateData).where(eq(complaints.id, targetId));
       res.json({ message: "Status komplain diperbarui" });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1457,7 +2174,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Database Backup Listing
-  app.get("/api/admin/backups", isAuthenticated, isAdmin, (req: Request, res: Response) => {
+  app.get("/api/admin/backups", isAuthenticated, isSuperAdmin, (req: Request, res: Response) => {
     const backupDir = path.resolve(process.cwd(), "backups");
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
@@ -1484,7 +2201,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Database Manual Backup Creation
-  app.post("/api/admin/backup", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/backup", isAuthenticated, isSuperAdmin, async (req: Request, res: Response) => {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
       return res.status(500).json({ success: false, message: "DATABASE_URL tidak dikonfigurasi" });
@@ -1525,7 +2242,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Download SQL Backup File
-  app.get("/api/admin/backups/download/:fileName", isAuthenticated, isAdmin, (req: Request, res: Response) => {
+  app.get("/api/admin/backups/download/:fileName", isAuthenticated, isSuperAdmin, (req: Request, res: Response) => {
     const backupDir = path.resolve(process.cwd(), "backups");
     const filePath = path.join(backupDir, req.params.fileName);
 
@@ -1541,7 +2258,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Import SQL Database file
-  app.post("/api/admin/backups/import", isAuthenticated, isAdmin, sqlUpload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/admin/backups/import", isAuthenticated, isSuperAdmin, sqlUpload.single("file"), async (req: Request, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ message: "File SQL wajib diunggah" });
     }

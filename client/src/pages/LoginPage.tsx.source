@@ -47,7 +47,7 @@ export default function LoginPage() {
           }
           toast({
             title: "Berhasil Masuk",
-            description: `Selamat datang kembali di Portal ${singkatanPt || "Perusahaan"}.`,
+            description: "Selamat datang kembali di Portal PT ABC.",
             variant: "success",
           });
         },

@@ -4,6 +4,7 @@ import { Toaster } from "./components/ui/toaster.js";
 import { TooltipProvider } from "./components/ui/tooltip.js";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { PWAPrompt } from "./components/PWAPrompt.js";
 
 // Page imports
 import LoginPage from "./pages/LoginPage.js";
@@ -254,6 +255,7 @@ export default function App() {
         </div>
       </TooltipProvider>
       <Toaster />
+      <PWAPrompt />
     </AuthProvider>
   );
 }

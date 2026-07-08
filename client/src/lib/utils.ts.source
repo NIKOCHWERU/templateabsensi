@@ -213,3 +213,4 @@ export const resolveViewUrl = (value: string | null | undefined): string => {
   }
   return `/uploads/${value}`;
 };
+
